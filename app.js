@@ -3,7 +3,9 @@
  * Dış servisler: YouTube IFrame API, LRCLIB (senkron sözler), MyMemory (çeviri),
  * dictionaryapi.dev (İngilizce tanım). */
 'use strict';
-const APP_VERSION = 6; // keep in sync with ?v= in index.html and VERSION in sw.js
+const APP_VERSION = 7; // keep in sync with ?v= in index.html and VERSION in sw.js
+const isTouch = matchMedia('(hover: none)').matches;
+const iosVer = (navigator.userAgent.match(/OS (\d+)_(\d+)/) || []).slice(1).join('.');
 
 // Show unexpected errors on screen (phones have no console) so they can be reported
 let lastErr = '';
@@ -402,7 +404,7 @@ function viewHome() {
       </details>
     </div>
     <div class="row small muted" style="justify-content:center;margin-top:18px">
-      <span>Lyricly · Sürüm ${APP_VERSION}</span><button class="btn sm ghost" id="hardRefresh">🔄 Uygulamayı güncelle</button>
+      <span>Lyricly · Sürüm ${APP_VERSION}${iosVer ? ` · iOS ${iosVer}` : ''}</span><button class="btn sm ghost" id="hardRefresh">🔄 Uygulamayı güncelle</button>
     </div>
   </div>`;
   bindBackup();
@@ -464,7 +466,7 @@ function viewAdd() {
   $('#searchBtn').onclick = doSearch;
   // NB: must not return false for other keys — an on* handler returning false cancels the keystroke
   $('#q').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#q').blur(); doSearch(); } };
-  $('#q').focus();
+  if (!isTouch) $('#q').focus(); // iPhone: programmatic focus without a tap can leave the field dead
   $('#manualBtn').onclick = () => {
     const raw = $('#mLyrics').value.trim(), title = $('#mTitle').value.trim() || 'Adsız şarkı', artist = $('#mArtist').value.trim() || '';
     if (!raw) return toast('Önce sözleri yapıştır');
@@ -481,7 +483,7 @@ function viewAdd() {
       <span class="tag ${p.synced ? 'sync' : 'plain'}">${p.synced ? 'senkronlu sözler ✓' : 'düz metin — ilk açılışta senkronlayacaksın'}</span>
       <div class="preview-lyrics" style="margin-top:10px">${esc(sample)}\n…</div>`;
     $('#ytSearch').href = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${p.artist} ${p.title} lyrics`)}`;
-    $('#yt').focus();
+    if (!isTouch) $('#yt').focus();
   }
   $('#yt').oninput = () => {
     const id = ytId($('#yt').value);
@@ -508,7 +510,7 @@ const MODES = [
 const XP = { pick: 10, type: 15, gap: 8 };
 
 function viewPlay(song) {
-  song.lastPlayed = Date.now(); song.done ||= { pick: [], type: [], gap: [] }; song.pos ||= { pick: 0, type: 0, gap: 0 }; save();
+  song.lastPlayed = Date.now(); song.done = song.done || { pick: [], type: [], gap: [] }; song.pos = song.pos || { pick: 0, type: 0, gap: 0 }; save();
   const P = { song, player: null, ready: false, mode: song.synced ? (song.lastMode || 'pick') : 'sync', stopAt: null, onStop: null, slow: false, curLine: -1, timer: null, idxs: practiceIdx(song), attempt: 0 };
   current.song = song;
   app.innerHTML = `
@@ -778,7 +780,7 @@ function viewPlay(song) {
     $('#ex').innerHTML = exFrame(k, `Dinle ve duyduğun cümleyi yaz. <span class="muted">(${target.length} kelime · büyük/küçük harf ve noktalama önemsiz)</span>`,
       `<input class="input type-input" id="ans" enterkeyhint="go" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" placeholder="Duyduğunu yaz…"><div class="diff" id="diff"></div>
        <div class="row" style="margin-top:10px"><button class="btn sm ghost" id="hintBtn">💡 Bir kelime ipucu</button></div>`);
-    const inp = $('#ans'); setTimeout(() => inp.focus(), 50);
+    const inp = $('#ans'); if (!isTouch) setTimeout(() => inp.focus(), 50);
     $('#hintBtn').onclick = () => {
       const typed = tokens(inp.value), al = align(typed, target);
       // reveal the first missing/incorrect word in place
@@ -820,13 +822,13 @@ function viewPlay(song) {
     }).join('');
     $('#ex').innerHTML = exFrame(k, 'Dinle ve boşlukları doldur. <span class="muted">(Boşluk kutusunun uzunluğu kelimenin uzunluğu kadar)</span>',
       `<div class="gap-line" data-line="${esc(song.lines[i].text)}">${html}</div>`);
-    const ins = $$('.gap-line input'); setTimeout(() => ins[0]?.focus(), 50);
+    const ins = $$('.gap-line input'); if (!isTouch) setTimeout(() => ins[0]?.focus(), 50);
     ins.forEach((inp, n) => inp.addEventListener('keydown', (e) => { if (e.key === ' ' && ins[n + 1]) { e.preventDefault(); ins[n + 1].focus(); } }));
     bindCommon(k, i, () => {
       if (ins.every((x) => !x.value.trim())) return;
       P.attempt++;
       let all = true;
-      ins.forEach((x) => { const ok = !!wordMatch(norm(x.value.trim()), norm(x.dataset.ans)); x.className = ok ? 'ok' : 'no'; if (ok) x.value = x.dataset.ans; all &&= ok; });
+      ins.forEach((x) => { const ok = !!wordMatch(norm(x.value.trim()), norm(x.dataset.ans)); x.className = ok ? 'ok' : 'no'; if (ok) x.value = x.dataset.ans; all = all && ok; });
       if (all) { ins.forEach((x) => (x.disabled = true)); return succeed(k, i, $('.gap-line')); }
       fail($('.gap-line'), `<b>Kırmızı kutuları tekrar dene.</b> ${P.attempt >= 2 ? `<span class="muted">İpucu: ${ins.filter((x) => x.className === 'no').map((x) => `<b>${esc(x.dataset.ans[0])}${'_'.repeat(x.dataset.ans.length - 1)}</b>`).join(', ')}</span>` : ''}
         ${P.attempt >= 3 ? `<div class="row" style="margin-top:8px"><button class="btn sm" id="reveal">👀 Cevabı göster</button></div>` : ''}`);
@@ -1027,6 +1029,7 @@ function bindBackup() {
 renderHud();
 route();
 window.speechSynthesis?.getVoices();
+window.__lyriclyOK = true;
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {

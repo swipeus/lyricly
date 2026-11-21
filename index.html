@@ -13,7 +13,7 @@
   <title>Lyricly — Şarkılarla İngilizce</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=7" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>" />
 </head>
 <body>
@@ -40,6 +40,20 @@
   <div id="toasts"></div>
   <canvas id="confetti"></canvas>
 
-  <script src="app.js?v=6"></script>
+  <!-- Plain ES5 on purpose: if app.js fails to load or parse on an older phone, this still runs and says why -->
+  <script>
+    window.__errs = [];
+    window.addEventListener('error', function (e) {
+      if (e && e.message && e.message !== 'Script error.') window.__errs.push(e.message + ' (' + String(e.filename || '').split('/').pop() + ':' + e.lineno + ')');
+    }, true);
+    setTimeout(function () {
+      if (window.__lyriclyOK) return;
+      var d = document.createElement('div');
+      d.style.cssText = 'position:fixed;left:12px;right:12px;top:80px;z-index:99;background:#3a1020;color:#fff;border:1px solid #ff5c6c;padding:14px;border-radius:12px;font:14px/1.5 system-ui,sans-serif';
+      d.textContent = 'Uygulama yüklenemedi. Bu ekranın görüntüsünü gönder: ' + (window.__errs.join(' | ') || 'hata yok') + ' — ' + navigator.userAgent;
+      document.body.appendChild(d);
+    }, 5000);
+  </script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
