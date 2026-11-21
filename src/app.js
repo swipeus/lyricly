@@ -3,7 +3,7 @@
  * Dış servisler: YouTube IFrame API, LRCLIB (senkron sözler), MyMemory (çeviri),
  * dictionaryapi.dev (İngilizce tanım). */
 'use strict';
-const APP_VERSION = 10; // keep in sync with ?v= in index.html and VERSION in sw.js
+const APP_VERSION = 11; // keep in sync with ?v= in index.html and VERSION in sw.js
 const isTouch = matchMedia('(hover: none)').matches;
 const iosVer = (navigator.userAgent.match(/OS (\d+)_(\d+)/) || []).slice(1).join('.');
 
@@ -497,11 +497,12 @@ function viewHome() {
     <div class="hero">
       <div class="card hero-main">
         <h1>Şarkılarla İngilizce 🎶</h1>
-        <p>Sevdiğin şarkıyı YouTube'dan aç; her satırdan sonra şarkı durur, sen de kelimeleri seçerek ya da yazarak cümleyi tamamla. Bilmediğin kelimeye tıkla, çevirisini gör, deftere ekle ve kartlarla tekrar et.</p>
+        <p>Sevdiğin şarkıyı YouTube'dan ya da Spotify'dan aç; her satırdan sonra şarkı durur, sen de kelimeleri seçerek ya da yazarak cümleyi tamamla. Bilmediğin kelimeye tıkla, çevirisini gör, deftere ekle ve kartlarla tekrar et.</p>
         <div class="row" style="margin-top:16px">
           <a class="btn primary" href="#/add">＋ Şarkı ekle</a>
           <a class="btn" href="#/vocab">📒 Kelime tekrarı ${dueCards().length ? `<span class="badge">${dueCards().length}</span>` : ''}</a>
         </div>
+        ${spStatusHTML()}
       </div>
       <div class="card">
         <div class="goal">
@@ -524,7 +525,7 @@ function viewHome() {
       <label class="toggle"><input type="checkbox" id="sndTog" ${S.settings.sound ? 'checked' : ''}><span class="sw"></span>Ses efektleri</label></div>
     ${songs.length ? `<div class="songs">${songs.map((s) => `
       <div class="card song" data-id="${s.id}">
-        <div class="thumb" style="background-image:url('${s.videoId ? ytThumb(s.videoId) : ''}')"><div class="play">▶</div><button class="del" data-del="${s.id}">Sil</button></div>
+        <div class="thumb" style="background-image:url('${s.videoId ? ytThumb(s.videoId) : esc(s.spotify?.image || '')}')">${s.spotify ? '<span class="sp-badge">Spotify</span>' : ''}<div class="play">▶</div><button class="del" data-del="${s.id}">Sil</button></div>
         <div class="body"><div class="title">${esc(s.title)}</div><div class="artist">${esc(s.artist)}</div>
           <div class="prog"><div style="width:${songProgress(s)}%"></div></div>
           <div class="small muted" style="margin-top:6px">%${songProgress(s)} tamamlandı · ${practiceIdx(s).length} satır</div></div>
@@ -548,6 +549,8 @@ function viewHome() {
     </div>
   </div>`;
   bindBackup();
+  $('#spLogin')?.addEventListener('click', () => { sfx.click(); spLogin(); });
+  $('#spLogout')?.addEventListener('click', spLogout);
   $('#hardRefresh').onclick = hardRefresh;
   $('#goalSel').onchange = (e) => { S.settings.dailyGoal = +e.target.value; save(); viewHome(); };
   $('#sndTog').onchange = (e) => { S.settings.sound = e.target.checked; save(); sfx.click(); };
@@ -563,8 +566,8 @@ function viewAdd() {
   let picked = null; // { title, artist, lines, synced, duration }
   app.innerHTML = `
   <div class="view" style="max-width:860px;margin:0 auto">
-    <h1>Şarkı ekle</h1><p class="muted">Önce sözleri bul, sonra şarkının YouTube linkini yapıştır.</p>
-    <div class="steps"><div class="st on" id="st1">1 · Sözleri bul</div><div class="st" id="st2">2 · YouTube videosu</div></div>
+    <h1>Şarkı ekle</h1><p class="muted">${spCanPlay() ? 'Önce sözleri bul; şarkı Spotify\'da otomatik bulunur.' : 'Önce sözleri bul, sonra şarkının YouTube linkini yapıştır.'}</p>
+    <div class="steps"><div class="st on" id="st1">1 · Sözleri bul</div><div class="st" id="st2">2 · ${spCanPlay() ? 'Müzik' : 'YouTube videosu'}</div></div>
     <div class="card" id="step1">
       <div class="row"><input class="input" id="q" placeholder="Şarkı adı ve/veya sanatçı… ör. Coldplay Yellow" style="flex:1"><button class="btn primary" id="searchBtn">Ara</button></div>
       <div class="small muted" style="margin-top:8px">Sözler <b>LRCLIB</b> veritabanından gelir. <span class="tag sync">senkronlu</span> olanlar satır satır otomatik durdurmayı destekler.</div>
@@ -580,7 +583,9 @@ function viewAdd() {
     </div>
     <div class="card hidden" id="step2">
       <div id="pickedInfo"></div>
-      <div class="row" style="margin-top:14px"><input class="input" id="yt" placeholder="YouTube linki (https://www.youtube.com/watch?v=...)" style="flex:1">
+      <div id="spBox"></div>
+      <div class="small muted" id="ytLabel" style="margin-top:14px"></div>
+      <div class="row" style="margin-top:8px"><input class="input" id="yt" placeholder="YouTube linki (https://www.youtube.com/watch?v=...)" style="flex:1">
         <a class="btn" id="ytSearch" target="_blank" rel="noopener">🔎 YouTube'da ara</a></div>
       <div class="small muted" style="margin-top:8px">İpucu: Resmî klip gömülmeye kapalıysa "audio" veya "lyrics" sürümünü dene. Lyrics videolarında sözleri gizlemek için oynatıcıda <b>“Videoyu gizle”</b> seçeneği var.</div>
       <div id="ytPrev"></div>
@@ -599,7 +604,7 @@ function viewAdd() {
       $$('.result', box).forEach((b) => b.onclick = () => {
         const r = res[b.dataset.i]; sfx.click();
         const lines = r.syncedLyrics ? parseLRC(r.syncedLyrics) : r.plainLyrics.split(/\r?\n/).map((t) => t.trim()).filter(Boolean).map((text) => ({ t: null, text }));
-        goStep2({ title: r.trackName, artist: r.artistName, lines, synced: !!r.syncedLyrics });
+        goStep2({ title: r.trackName, artist: r.artistName, lines, synced: !!r.syncedLyrics, duration: r.duration });
       });
     } catch (e) { box.innerHTML = `<div class="muted">Arama başarısız: ${esc(e.message)}. İnternet bağlantını kontrol et.</div>`; }
   };
@@ -623,24 +628,185 @@ function viewAdd() {
       <span class="tag ${p.synced ? 'sync' : 'plain'}">${p.synced ? 'senkronlu sözler ✓' : 'düz metin — ilk açılışta senkronlayacaksın'}</span>
       <div class="preview-lyrics" style="margin-top:10px">${esc(sample)}\n…</div>`;
     $('#ytSearch').href = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${p.artist} ${p.title} lyrics`)}`;
-    if (!isTouch) $('#yt').focus();
+    spPick = null; updateSave();
+    if (spCanPlay()) findOnSpotify(p);
+    else {
+      $('#ytLabel').innerHTML = 'YouTube videosunun linkini yapıştır:';
+      $('#spBox').innerHTML = spEnabled() && !spLoggedIn()
+        ? `<div class="sp-hint"><span>Spotify ile giriş yaparsan link aramana gerek kalmaz.</span><button class="btn sm sp-btn" id="spLoginAdd">Spotify ile giriş yap</button></div>` : '';
+      $('#spLoginAdd')?.addEventListener('click', spLogin);
+      if (!isTouch) $('#yt').focus();
+    }
   }
+  // Spotify: find the same recording automatically, user can pick another match
+  let spPick = null;
+  async function findOnSpotify(p) {
+    const box = $('#spBox');
+    $('#ytLabel').innerHTML = 'İstersen YouTube linki de ekleyebilirsin (Spotify çalmazsa yedek olur):';
+    box.innerHTML = '<div class="sp-box"><span class="spinner"></span> Spotify\'da aranıyor…</div>';
+    try {
+      const items = (await spSearch(p.title, p.artist, p.duration)).slice(0, 4);
+      if (picked !== p) return;
+      if (!items.length) { box.innerHTML = '<div class="sp-box muted">Spotify\'da bulunamadı — YouTube linki ekle.</div>'; return; }
+      spPick = items[0]; updateSave();
+      box.innerHTML = `<div class="sp-box"><div class="sp-box-title">🟢 Spotify'da bulundu <span class="muted">· doğru sürümü seç</span></div>
+        ${items.map((x, n) => `<button class="sp-item ${n === 0 ? 'on' : ''}" data-n="${n}"><img src="${esc(x.image)}" alt=""><div class="meta"><b>${esc(x.name)}</b><span class="small muted">${esc(x.artist)} · ${fmtTime(x.duration)}${p.duration && Math.abs(x.duration - p.duration) <= 2 ? ' · <span style="color:var(--good)">sözlerle aynı süre ✓</span>' : ''}</span></div><i>✓</i></button>`).join('')}</div>`;
+      $$('.sp-item', box).forEach((b) => b.onclick = () => { $$('.sp-item', box).forEach((x) => x.classList.toggle('on', x === b)); spPick = items[+b.dataset.n]; sfx.click(); updateSave(); });
+    } catch (e) {
+      if (picked !== p) return;
+      box.innerHTML = `<div class="sp-box muted">Spotify araması başarısız (${esc(e.message)}). YouTube linki ekleyebilirsin.</div>`;
+    }
+  }
+  function updateSave() { $('#saveSong').disabled = !(spPick || ytId($('#yt').value)); }
   $('#yt').oninput = () => {
     const id = ytId($('#yt').value);
-    $('#saveSong').disabled = !id;
+    updateSave();
     $('#ytPrev').innerHTML = id ? `<div class="yt-preview" style="background-image:url('${ytThumb(id)}')"></div>` : '';
   };
   $('#back').onclick = () => { $('#step2').classList.add('hidden'); $('#step1').classList.remove('hidden'); $('#st2').classList.remove('on'); $('#st1').classList.add('on'); };
   $('#saveSong').onclick = () => {
     const id = uid();
-    S.songs[id] = { id, title: picked.title, artist: picked.artist, videoId: ytId($('#yt').value), lines: picked.lines, synced: picked.synced, offset: 0, done: { pick: [], type: [], gap: [] }, pos: { pick: 0, type: 0, gap: 0 }, created: Date.now() };
+    S.songs[id] = { id, title: picked.title, artist: picked.artist, videoId: ytId($('#yt').value), spotify: spPick || null, lines: picked.lines, synced: picked.synced, offset: 0, done: { pick: [], type: [], gap: [] }, pos: { pick: 0, type: 0, gap: 0 }, created: Date.now() };
     save(); sfx.save(); toast('🎵 Şarkı kaydedildi');
     location.hash = `#/play/${id}`;
   };
 }
 
+/* ============================== SPOTIFY (optional) ==============================
+ * Login: Authorization Code + PKCE, fully in the browser (no secret). Playback: Web Playback SDK
+ * (needs Spotify Premium). Exposed to the player as the same small interface as the YouTube player
+ * (getCurrentTime / seekTo / playVideo / pauseVideo / getPlayerState …) so the exercises don't care.
+ * The Client ID is public by design; the app must be registered at developer.spotify.com with the
+ * redirect URI below, and (development mode) each user's Spotify e-mail added under "Users". */
+const SPOTIFY_CLIENT_ID = ''; // ← Spotify Developer Dashboard → Lyricly → Client ID
+const SP_REDIRECT = location.origin + location.pathname.replace(/index\.html$/, '');
+const SP_SCOPES = 'streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state';
+const SP_KEY = 'lyricly-spotify', SP_PKCE = 'lyricly-spotify-pkce';
+const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const spAuth = () => lsGet(SP_KEY);
+const spEnabled = () => !!SPOTIFY_CLIENT_ID;
+const spLoggedIn = () => spEnabled() && !!spAuth()?.refresh;
+const spPremium = () => spAuth()?.user?.product === 'premium';
+const spCanPlay = () => spLoggedIn() && spPremium();
+const b64url = (buf) => btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+async function spLogin() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  const state = uid() + uid();
+  lsSet(SP_PKCE, { verifier, state, back: location.hash || '#/' });
+  const q = new URLSearchParams({ client_id: SPOTIFY_CLIENT_ID, response_type: 'code', redirect_uri: SP_REDIRECT, code_challenge_method: 'S256', code_challenge: challenge, scope: SP_SCOPES, state });
+  location.href = `https://accounts.spotify.com/authorize?${q}`;
+}
+function spLogout() { lsSet(SP_KEY, null); toast('Spotify çıkışı yapıldı — şarkılar YouTube\'dan açılacak'); route(); }
+async function spTokenRequest(params) {
+  const r = await fetch('https://accounts.spotify.com/api/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: SPOTIFY_CLIENT_ID, ...params }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error_description || d.error || `Spotify ${r.status}`);
+  return d;
+}
+// Called on every page load: finishes the login when Spotify redirected back with ?code=…
+async function spHandleRedirect() {
+  const qs = new URLSearchParams(location.search);
+  if (!qs.has('code') && !qs.has('error')) return;
+  const pk = lsGet(SP_PKCE); lsSet(SP_PKCE, null);
+  history.replaceState(null, '', SP_REDIRECT + (pk?.back || '#/'));
+  if (qs.get('error')) return toast('Spotify girişi iptal edildi');
+  if (!pk || qs.get('state') !== pk.state) return toast('⚠️ Spotify girişi doğrulanamadı, tekrar dene');
+  try {
+    const d = await spTokenRequest({ grant_type: 'authorization_code', code: qs.get('code'), redirect_uri: SP_REDIRECT, code_verifier: pk.verifier });
+    lsSet(SP_KEY, { access: d.access_token, refresh: d.refresh_token, exp: Date.now() + d.expires_in * 1000 });
+    const me = await spApi('/me');
+    const a = spAuth(); a.user = { name: me?.display_name || me?.id || '', product: me?.product || '' }; lsSet(SP_KEY, a);
+    if (a.user.product === 'premium') { sfx.level(); toast(`🟢 Spotify'a bağlandın${a.user.name ? `, ${esc(a.user.name)}` : ''}! Şarkılar artık Spotify'dan çalacak.`, 4000); }
+    else toast('Spotify bağlandı ama hesap Premium değil — Spotify sadece Premium\'da şarkı çaldırmaya izin veriyor, YouTube kullanılacak.', 6000);
+  } catch (e) {
+    lsSet(SP_KEY, null);
+    toast(`⚠️ Spotify girişi başarısız: ${esc(e.message)}`, 6000);
+  }
+  route();
+}
+async function spToken() {
+  const a = spAuth(); if (!a?.refresh) throw new Error('Spotify girişi yok');
+  if (Date.now() < a.exp - 60000) return a.access;
+  const d = await spTokenRequest({ grant_type: 'refresh_token', refresh_token: a.refresh });
+  a.access = d.access_token; a.exp = Date.now() + d.expires_in * 1000; if (d.refresh_token) a.refresh = d.refresh_token;
+  lsSet(SP_KEY, a); return a.access;
+}
+async function spApi(path, opts = {}, retry = true) {
+  const r = await fetch(`https://api.spotify.com/v1${path}`, { ...opts, headers: { Authorization: `Bearer ${await spToken()}`, 'Content-Type': 'application/json' } });
+  if (r.status === 401 && retry) { const a = spAuth(); if (a) { a.exp = 0; lsSet(SP_KEY, a); } return spApi(path, opts, false); }
+  if (r.status === 204) return null;
+  const d = await r.json().catch(() => null);
+  if (!r.ok) throw new Error(d?.error?.message || `Spotify ${r.status}`);
+  return d;
+}
+// "Coldplay - Yellow (Official Video)" → "Yellow"
+const cleanTitle = (title, artist) => title.replace(new RegExp(`^${artist.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[-–]\\s*`, 'i'), '').replace(/\s*[([][^)\]]*(official|video|lyric|audio|remaster)[^)\]]*[)\]]/gi, '').trim();
+async function spSearch(title, artist, durationSec) {
+  const t = cleanTitle(title, artist);
+  const d = await spApi(`/search?type=track&limit=8&q=${encodeURIComponent(`${t} ${artist}`)}`);
+  const items = (d?.tracks?.items || []).map((x) => ({ id: x.id, name: x.name, artist: x.artists.map((a) => a.name).join(', '), image: x.album.images?.[1]?.url || x.album.images?.[0]?.url || '', duration: x.duration_ms / 1000 }));
+  // best first: right artist, close duration (synced lyrics are timed to a specific version)
+  const score = (x) => (trLower(x.artist).includes(trLower(artist.split(/[,&]/)[0].trim())) ? 0 : 50) + (durationSec ? Math.abs(x.duration - durationSec) : 0) + (trLower(x.name).startsWith(trLower(t)) ? 0 : 10);
+  return items.sort((a, b) => score(a) - score(b));
+}
+
+function spStatusHTML() {
+  if (!spEnabled()) return '';
+  if (!spLoggedIn()) return `<div class="sp-status"><button class="btn sp-btn" id="spLogin">Spotify ile giriş yap</button>
+    <span class="small">Premium hesabın varsa şarkılar Spotify'dan çalar. Giriş yapmazsan YouTube kullanılır.</span></div>`;
+  const u = spAuth().user || {};
+  return `<div class="sp-status on"><span class="sp-dot"></span><span class="small"><b>Spotify${u.name ? ` · ${esc(u.name)}` : ''}</b><br>
+    ${spPremium() ? 'Şarkılar Spotify\'dan çalacak' : 'Premium değil — şarkılar YouTube\'dan çalacak'}</span><button class="btn sm ghost" id="spLogout">Çıkış</button></div>`;
+}
+
+let spSdk = null;
+const loadSpotifySDK = () => spSdk || (spSdk = new Promise((res, rej) => {
+  if (window.Spotify?.Player) return res();
+  window.onSpotifyWebPlaybackSDKReady = res;
+  const s = document.createElement('script'); s.src = 'https://sdk.scdn.co/spotify-player.js'; s.onerror = () => rej(new Error('Spotify oynatıcısı yüklenemedi'));
+  document.head.appendChild(s);
+}));
+// YouTube-player-shaped wrapper around the Spotify Web Playback SDK
+function spotifyPlayer(trackId, h) {
+  let player = null, deviceId = null, started = false, starting = false, wantSeek = 0, dead = false;
+  let st = { pos: 0, ts: Date.now(), paused: true };
+  const setState = (s) => { if (!s) return; st = { pos: s.position / 1000, ts: Date.now(), paused: s.paused }; starting = false; h.onState?.(s.paused ? 2 : 1); };
+  const api = {
+    getCurrentTime: () => (st.paused ? st.pos : st.pos + (Date.now() - st.ts) / 1000),
+    getPlayerState: () => (starting ? 3 : st.paused ? 2 : 1),
+    seekTo(sec) { wantSeek = sec; st = { pos: sec, ts: Date.now(), paused: st.paused }; if (started) player?.seek(Math.round(sec * 1000)).catch(() => {}); },
+    playVideo() {
+      if (!player || !deviceId) return;
+      player.activateElement?.(); // iOS: unlocks audio when called from a tap
+      if (started) { player.resume().catch(() => {}); return; }
+      starting = true;
+      spApi(`/me/player/play?device_id=${deviceId}`, { method: 'PUT', body: JSON.stringify({ uris: [`spotify:track:${trackId}`], position_ms: Math.round(wantSeek * 1000) }) })
+        .then(() => { started = true; })
+        .catch((e) => { starting = false; h.onError('playback_error', e.message); });
+    },
+    pauseVideo() { st = { pos: api.getCurrentTime(), ts: Date.now(), paused: true }; player?.pause().catch(() => {}); },
+    setPlaybackRate() {}, unloadModule() {},
+    destroy() { dead = true; clearInterval(poll); player?.disconnect(); },
+    activate() { player?.activateElement?.(); },
+  };
+  // keep the extrapolated position honest
+  const poll = setInterval(() => { player?.getCurrentState().then((s) => { if (s && !starting) setState(s); }).catch(() => {}); }, 1000);
+  loadSpotifySDK().then(() => {
+    if (dead) return;
+    player = new window.Spotify.Player({ name: 'Lyricly', getOAuthToken: (cb) => spToken().then(cb).catch(() => h.onError('authentication_error', 'Oturum süresi doldu')), volume: 0.9 });
+    player.addListener('ready', ({ device_id }) => { deviceId = device_id; h.onReady(); });
+    player.addListener('player_state_changed', setState);
+    ['initialization_error', 'authentication_error', 'account_error', 'playback_error'].forEach((ev) => player.addListener(ev, ({ message }) => h.onError(ev, message)));
+    player.connect().then((ok) => { if (!ok) h.onError('initialization_error', 'Bağlanılamadı'); });
+  }).catch((e) => h.onError('initialization_error', e.message));
+  return api;
+}
+
 /* ============================== PLAYER / PRACTICE ============================== */
-const practiceIdx = (song) => song.lines.map((l, i) => (l.text && tokens(l.text).length ? i : -1)).filter((i) => i >= 0);
+const practiceIdx =(song) => song.lines.map((l, i) => (l.text && tokens(l.text).length ? i : -1)).filter((i) => i >= 0);
 const MODES = [
   { id: 'listen', label: '🎧 Dinle & Oku' },
   { id: 'pick', label: '🧩 Kelime Seç' },
@@ -655,7 +821,7 @@ function viewPlay(song) {
   current.song = song;
   app.innerHTML = `
   <div class="view">
-    <div class="player-head"><a class="btn icon ghost" href="#/">←</a><div><h1>${esc(song.title)}</h1><div class="muted small">${esc(song.artist)}</div></div></div>
+    <div class="player-head"><a class="btn icon ghost" href="#/">←</a><div style="flex:1;min-width:0"><h1>${esc(song.title)}</h1><div class="muted small">${esc(song.artist)}</div></div><span id="srcSwitch"></span></div>
     <div class="player-layout">
       <div>
         <div class="video-wrap"><div id="yt"></div>
@@ -685,7 +851,51 @@ function viewPlay(song) {
     </div>
   </div>`;
 
-  /* ---------- player ---------- */
+  /* ---------- player: Spotify when signed in with Premium and the song has a Spotify match, else YouTube ---------- */
+  const wantSpotify = song.spotify && spCanPlay() && song.prefSource !== 'youtube';
+  P.source = wantSpotify ? 'spotify' : song.videoId ? 'youtube' : 'none';
+  $('#srcSwitch').innerHTML = song.spotify && song.videoId && spCanPlay()
+    ? `<button class="btn sm ghost" id="srcBtn" title="Kaynağı değiştir">${P.source === 'spotify' ? '🟢 Spotify' : '▶️ YouTube'} ⇄</button>` : '';
+  $('#srcBtn')?.addEventListener('click', () => { song.prefSource = P.source === 'spotify' ? 'youtube' : 'spotify'; save(); sfx.click(); route(); });
+  if (P.source === 'spotify') startSpotify();
+  else if (P.source === 'youtube') startYouTube();
+  else noSource();
+  // any tap on this screen counts as the user gesture Spotify needs before it may play sound
+  $('.view').addEventListener('click', () => { if (P.source === 'spotify' && P.player?.activate) { P.player.activate(); P.tapped = true; } }, true);
+
+  function startSpotify() {
+    const s = song.spotify;
+    $('.video-wrap').classList.add('sp');
+    $('.video-wrap').innerHTML = `<div class="sp-cover paused" id="spCover" style="--art:url('${esc(s.image)}')">
+      <div class="sp-art"></div>
+      <div class="sp-info"><div class="eq"><i></i><i></i><i></i><i></i></div><b>${esc(s.name)}</b><span>${esc(s.artist)}</span>
+        <a class="sp-link" href="https://open.spotify.com/track/${esc(s.id)}" target="_blank" rel="noopener">Spotify ile çalınıyor ↗</a></div></div>`;
+    $('#hideTog').closest('.toggle').classList.add('hidden');
+    $('#slowTog').closest('.toggle').classList.add('hidden'); // Spotify can't change speed
+    P.player = spotifyPlayer(s.id, {
+      onReady: () => { if (current.song !== song) return; P.ready = true; renderMode(); },
+      onState: (stt) => { $('#spCover')?.classList.toggle('paused', stt !== 1); if (P.mode === 'listen' || P.mode === 'sync') renderMode.tick?.(); },
+      onError: (kind, msg) => {
+        if (current.song !== song || P.spFailed) return;
+        P.spFailed = true;
+        if (kind === 'account_error') { const a = spAuth(); if (a?.user) { a.user.product = 'free'; lsSet(SP_KEY, a); } }
+        const why = kind === 'account_error' ? 'Spotify Premium gerekiyor.' : `Spotify oynatılamadı (${msg || kind}).`;
+        if (song.videoId) { toast(`⚠️ ${esc(why)} YouTube'a geçiliyor.`, 5000); song.prefSource = 'youtube'; route(); }
+        else { toast(`⚠️ ${esc(why)}`, 5000); noSource(why); }
+      },
+    });
+  }
+  function noSource(why) {
+    P.ready = false;
+    $('.video-wrap').innerHTML = `<div class="yt-error"><div><b>${esc(why || (song.spotify ? 'Bu şarkı Spotify\'dan eklendi.' : 'Bu şarkının videosu yok.'))}</b><br>
+      <span class="muted small">${spEnabled() && song.spotify && !spLoggedIn() ? 'Spotify ile giriş yap ya da' : ''} bir YouTube linki ekle:</span>
+      <div class="row" style="justify-content:center;margin-top:12px">${spEnabled() && song.spotify && !spLoggedIn() ? '<button class="btn sp-btn" id="spLoginHere">Spotify ile giriş yap</button>' : ''}
+      <input class="input" id="newYt" placeholder="YouTube linki" style="max-width:300px"><button class="btn primary" id="newYtBtn">Ekle</button></div></div></div>`;
+    $('#spLoginHere')?.addEventListener('click', spLogin);
+    $('#newYtBtn').onclick = () => { const id = ytId($('#newYt').value); if (!id) return toast('Geçerli bir YouTube linki yapıştır'); song.videoId = id; song.prefSource = 'youtube'; save(); route(); };
+    $('#ex').innerHTML = '<div class="empty"><div class="big">🎧</div><p>Önce bir müzik kaynağı seç.</p></div>';
+  }
+  function startYouTube() {
   loadYT().then(() => {
     if (current.song !== song) return;
     P.player = new YT.Player('yt', {
@@ -708,7 +918,8 @@ function viewPlay(song) {
       },
     });
   });
-  const now = () => (P.ready ? P.player.getCurrentTime() : 0);
+  }
+  const now =() => (P.ready ? P.player.getCurrentTime() : 0);
   const lineStart = (i) => song.lines[i].t + song.offset;
   function lineEnd(i) {
     const st = song.lines[i].t; let nx = song.lines[i + 1]?.t;
@@ -717,7 +928,15 @@ function viewPlay(song) {
     return nx + song.offset - 0.08;
   }
   function playLine(i, onStop) {
-    if (!P.ready) return toast('Video yükleniyor…');
+    if (!P.ready) return toast(P.source === 'spotify' ? 'Spotify bağlanıyor…' : 'Video yükleniyor…');
+    // Spotify's player may only start sound from a tap (browser autoplay rules): ask once
+    if (P.source === 'spotify' && !P.tapped) {
+      if (!$('.tap-start')) {
+        $('.video-wrap').insertAdjacentHTML('beforeend', '<button class="tap-start sp-tap"><div>▶ Başlamak için dokun</div></button>');
+        $('.sp-tap').onclick = () => { P.tapped = true; P.player.activate(); $('.sp-tap').remove(); sfx.click(); playLine(i, onStop); };
+      }
+      return;
+    }
     P.player.setPlaybackRate(P.slow ? S.settings.slowRate : 1);
     P.player.seekTo(Math.max(0, lineStart(i) - 0.25), true);
     P.player.playVideo();
@@ -731,7 +950,7 @@ function viewPlay(song) {
     // Mobile browsers block programmatic playback until the user taps the video once
     const st = P.player.getPlayerState?.();
     if (st === 1) { P.wantPlay = null; $('.tap-start')?.remove(); }
-    else if (P.wantPlay && st !== 3 && Date.now() - P.wantPlay > 1500 && !$('.tap-start')) {
+    else if (P.source === 'youtube' && P.wantPlay && st !== 3 && Date.now() - P.wantPlay > 1500 && !$('.tap-start')) {
       $('.video-wrap')?.insertAdjacentHTML('beforeend', '<div class="tap-start"><div>▶ Başlatmak için videoya dokun</div></div>');
       $('.video-wrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -1193,6 +1412,7 @@ function bindBackup() {
 /* ============================== BOOT ============================== */
 renderHud();
 route();
+if (spEnabled()) spHandleRedirect().catch((e) => showError(e.message));
 window.speechSynthesis?.getVoices();
 window.__lyriclyOK = true;
 if ('serviceWorker' in navigator && location.protocol === 'https:') {

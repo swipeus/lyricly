@@ -19,7 +19,7 @@ var __spreadValues = (a, b) => {
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 var _a;
-const APP_VERSION = 10;
+const APP_VERSION = 11;
 const isTouch = matchMedia("(hover: none)").matches;
 const iosVer = (navigator.userAgent.match(/OS (\d+)_(\d+)/) || []).slice(1).join(".");
 let lastErr = "";
@@ -682,6 +682,7 @@ function songProgress(song) {
   return Math.round(Math.min(1, done.size / n) * 100);
 }
 function viewHome() {
+  var _a2, _b;
   const st = S.stats, todayXp = st.history[today()] || 0;
   const goalP = Math.min(100, Math.round(todayXp / S.settings.dailyGoal * 100));
   const week = Array.from({ length: 7 }, (_, i) => {
@@ -692,8 +693,16 @@ function viewHome() {
   const songs = Object.values(S.songs).sort((a, b) => (b.lastPlayed || b.created) - (a.lastPlayed || a.created));
   const acc = st.attempts ? Math.round(st.correct / st.attempts * 100) : 0;
   const dayNames = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
-  app.innerHTML = '\n  <div class="view">\n    <div class="hero">\n      <div class="card hero-main">\n        <h1>Şarkılarla İngilizce 🎶</h1>\n        <p>Sevdiğin şarkıyı YouTube\'dan aç; her satırdan sonra şarkı durur, sen de kelimeleri seçerek ya da yazarak cümleyi tamamla. Bilmediğin kelimeye tıkla, çevirisini gör, deftere ekle ve kartlarla tekrar et.</p>\n        <div class="row" style="margin-top:16px">\n          <a class="btn primary" href="#/add">＋ Şarkı ekle</a>\n          <a class="btn" href="#/vocab">📒 Kelime tekrarı '.concat(dueCards().length ? '<span class="badge">'.concat(dueCards().length, "</span>") : "", '</a>\n        </div>\n      </div>\n      <div class="card">\n        <div class="goal">\n          <div class="ring" style="--p:').concat(goalP, '"><div>').concat(todayXp, "/").concat(S.settings.dailyGoal, '</div></div>\n          <div><h3>Günlük hedef</h3><div class="muted small">').concat(goalP >= 100 ? "Bugünkü hedef tamam! 🎉" : "Hedefe ".concat(S.settings.dailyGoal - todayXp, " XP kaldı"), '</div>\n            <div class="row small" style="margin-top:6px"><span class="muted">Hedef:</span>\n              <select id="goalSel" class="input" style="width:auto;padding:4px 8px">').concat([30, 60, 100, 150, 250].map((g) => "<option ".concat(g === S.settings.dailyGoal ? "selected" : "", ">").concat(g, "</option>")).join(""), '</select> XP</div>\n          </div>\n        </div>\n        <div class="week">').concat(week.map((w) => '<div class="bar" title="'.concat(w.d, ": ").concat(w.xp, ' XP"><i style="height:').concat(w.xp / maxW * 100, '%"></i><span>').concat(dayNames[new Date(w.d).getDay()], "</span></div>")).join(""), '</div>\n        <div class="stats" style="margin-top:14px">\n          <div class="stat"><b>').concat(st.lines, '</b><span>Tamamlanan satır</span></div>\n          <div class="stat"><b>%').concat(acc, '</b><span>İlk denemede doğruluk</span></div>\n          <div class="stat"><b>').concat(Object.keys(S.vocab).length, '</b><span>Defterdeki kelime</span></div>\n          <div class="stat"><b>').concat(st.xp, '</b><span>Toplam XP</span></div>\n        </div>\n      </div>\n    </div>\n    <div class="row" style="margin-bottom:14px"><h2 style="margin:0">Şarkılarım</h2><span class="spacer"></span>\n      <label class="toggle"><input type="checkbox" id="sndTog" ').concat(S.settings.sound ? "checked" : "", '><span class="sw"></span>Ses efektleri</label></div>\n    ').concat(songs.length ? '<div class="songs">'.concat(songs.map((s) => '\n      <div class="card song" data-id="'.concat(s.id, '">\n        <div class="thumb" style="background-image:url(\'').concat(s.videoId ? ytThumb(s.videoId) : "", '\')"><div class="play">▶</div><button class="del" data-del="').concat(s.id, '">Sil</button></div>\n        <div class="body"><div class="title">').concat(esc(s.title), '</div><div class="artist">').concat(esc(s.artist), '</div>\n          <div class="prog"><div style="width:').concat(songProgress(s), '%"></div></div>\n          <div class="small muted" style="margin-top:6px">%').concat(songProgress(s), " tamamlandı · ").concat(practiceIdx(s).length, " satır</div></div>\n      </div>")).join(""), "</div>") : '<div class="card empty"><div class="big">🎤</div><h3>Henüz şarkı yok</h3><p>İlk şarkını ekleyerek başla.</p><a class="btn primary" href="#/add">＋ Şarkı ekle</a></div>', '\n    <div class="card backup" style="margin-top:24px">\n      <h2>💾 Yedekle / Geri yükle</h2>\n      <p class="muted small" style="margin-top:-6px">Şarkıların, kelimelerin ve XP\'n sadece bu cihazda duruyor. Başka cihaza (ör. bilgisayar ↔ iPhone) aktarmak için yedek al, öbür cihazda yükle. Yükleme mevcut verilerle <b>birleştirir</b>, hiçbir şey silinmez.</p>\n      <div class="row">\n        <button class="btn primary" id="bkExport">📤 Yedeği dışa aktar</button>\n        <label class="btn" for="bkFile">📥 Yedek dosyası yükle</label><input type="file" id="bkFile" accept=".json,application/json" hidden>\n        <button class="btn" id="bkCopy">📋 Yedek kodunu kopyala</button>\n      </div>\n      <details style="margin-top:12px"><summary class="muted small" style="cursor:pointer">Yedek kodunu yapıştırarak yükle</summary>\n        <textarea class="input" id="bkText" style="min-height:90px;margin-top:10px" placeholder="Kopyaladığın yedek kodunu buraya yapıştır"></textarea>\n        <button class="btn" id="bkPaste" style="margin-top:8px">Yükle</button>\n      </details>\n    </div>\n    <div class="row small muted" style="justify-content:center;margin-top:18px">\n      <span>Lyricly · Sürüm ').concat(APP_VERSION).concat(iosVer ? " · iOS ".concat(iosVer) : "", '</span><button class="btn sm ghost" id="hardRefresh">🔄 Uygulamayı güncelle</button>\n    </div>\n  </div>');
+  app.innerHTML = '\n  <div class="view">\n    <div class="hero">\n      <div class="card hero-main">\n        <h1>Şarkılarla İngilizce 🎶</h1>\n        <p>Sevdiğin şarkıyı YouTube\'dan ya da Spotify\'dan aç; her satırdan sonra şarkı durur, sen de kelimeleri seçerek ya da yazarak cümleyi tamamla. Bilmediğin kelimeye tıkla, çevirisini gör, deftere ekle ve kartlarla tekrar et.</p>\n        <div class="row" style="margin-top:16px">\n          <a class="btn primary" href="#/add">＋ Şarkı ekle</a>\n          <a class="btn" href="#/vocab">📒 Kelime tekrarı '.concat(dueCards().length ? '<span class="badge">'.concat(dueCards().length, "</span>") : "", "</a>\n        </div>\n        ").concat(spStatusHTML(), '\n      </div>\n      <div class="card">\n        <div class="goal">\n          <div class="ring" style="--p:').concat(goalP, '"><div>').concat(todayXp, "/").concat(S.settings.dailyGoal, '</div></div>\n          <div><h3>Günlük hedef</h3><div class="muted small">').concat(goalP >= 100 ? "Bugünkü hedef tamam! 🎉" : "Hedefe ".concat(S.settings.dailyGoal - todayXp, " XP kaldı"), '</div>\n            <div class="row small" style="margin-top:6px"><span class="muted">Hedef:</span>\n              <select id="goalSel" class="input" style="width:auto;padding:4px 8px">').concat([30, 60, 100, 150, 250].map((g) => "<option ".concat(g === S.settings.dailyGoal ? "selected" : "", ">").concat(g, "</option>")).join(""), '</select> XP</div>\n          </div>\n        </div>\n        <div class="week">').concat(week.map((w) => '<div class="bar" title="'.concat(w.d, ": ").concat(w.xp, ' XP"><i style="height:').concat(w.xp / maxW * 100, '%"></i><span>').concat(dayNames[new Date(w.d).getDay()], "</span></div>")).join(""), '</div>\n        <div class="stats" style="margin-top:14px">\n          <div class="stat"><b>').concat(st.lines, '</b><span>Tamamlanan satır</span></div>\n          <div class="stat"><b>%').concat(acc, '</b><span>İlk denemede doğruluk</span></div>\n          <div class="stat"><b>').concat(Object.keys(S.vocab).length, '</b><span>Defterdeki kelime</span></div>\n          <div class="stat"><b>').concat(st.xp, '</b><span>Toplam XP</span></div>\n        </div>\n      </div>\n    </div>\n    <div class="row" style="margin-bottom:14px"><h2 style="margin:0">Şarkılarım</h2><span class="spacer"></span>\n      <label class="toggle"><input type="checkbox" id="sndTog" ').concat(S.settings.sound ? "checked" : "", '><span class="sw"></span>Ses efektleri</label></div>\n    ').concat(songs.length ? '<div class="songs">'.concat(songs.map((s) => {
+    var _a3;
+    return '\n      <div class="card song" data-id="'.concat(s.id, '">\n        <div class="thumb" style="background-image:url(\'').concat(s.videoId ? ytThumb(s.videoId) : esc(((_a3 = s.spotify) == null ? void 0 : _a3.image) || ""), "')\">").concat(s.spotify ? '<span class="sp-badge">Spotify</span>' : "", '<div class="play">▶</div><button class="del" data-del="').concat(s.id, '">Sil</button></div>\n        <div class="body"><div class="title">').concat(esc(s.title), '</div><div class="artist">').concat(esc(s.artist), '</div>\n          <div class="prog"><div style="width:').concat(songProgress(s), '%"></div></div>\n          <div class="small muted" style="margin-top:6px">%').concat(songProgress(s), " tamamlandı · ").concat(practiceIdx(s).length, " satır</div></div>\n      </div>");
+  }).join(""), "</div>") : '<div class="card empty"><div class="big">🎤</div><h3>Henüz şarkı yok</h3><p>İlk şarkını ekleyerek başla.</p><a class="btn primary" href="#/add">＋ Şarkı ekle</a></div>', '\n    <div class="card backup" style="margin-top:24px">\n      <h2>💾 Yedekle / Geri yükle</h2>\n      <p class="muted small" style="margin-top:-6px">Şarkıların, kelimelerin ve XP\'n sadece bu cihazda duruyor. Başka cihaza (ör. bilgisayar ↔ iPhone) aktarmak için yedek al, öbür cihazda yükle. Yükleme mevcut verilerle <b>birleştirir</b>, hiçbir şey silinmez.</p>\n      <div class="row">\n        <button class="btn primary" id="bkExport">📤 Yedeği dışa aktar</button>\n        <label class="btn" for="bkFile">📥 Yedek dosyası yükle</label><input type="file" id="bkFile" accept=".json,application/json" hidden>\n        <button class="btn" id="bkCopy">📋 Yedek kodunu kopyala</button>\n      </div>\n      <details style="margin-top:12px"><summary class="muted small" style="cursor:pointer">Yedek kodunu yapıştırarak yükle</summary>\n        <textarea class="input" id="bkText" style="min-height:90px;margin-top:10px" placeholder="Kopyaladığın yedek kodunu buraya yapıştır"></textarea>\n        <button class="btn" id="bkPaste" style="margin-top:8px">Yükle</button>\n      </details>\n    </div>\n    <div class="row small muted" style="justify-content:center;margin-top:18px">\n      <span>Lyricly · Sürüm ').concat(APP_VERSION).concat(iosVer ? " · iOS ".concat(iosVer) : "", '</span><button class="btn sm ghost" id="hardRefresh">🔄 Uygulamayı güncelle</button>\n    </div>\n  </div>');
   bindBackup();
+  (_a2 = $("#spLogin")) == null ? void 0 : _a2.addEventListener("click", () => {
+    sfx.click();
+    spLogin();
+  });
+  (_b = $("#spLogout")) == null ? void 0 : _b.addEventListener("click", spLogout);
   $("#hardRefresh").onclick = hardRefresh;
   $("#goalSel").onchange = (e) => {
     S.settings.dailyGoal = +e.target.value;
@@ -722,7 +731,7 @@ function viewHome() {
 }
 function viewAdd() {
   let picked = null;
-  app.innerHTML = '\n  <div class="view" style="max-width:860px;margin:0 auto">\n    <h1>Şarkı ekle</h1><p class="muted">Önce sözleri bul, sonra şarkının YouTube linkini yapıştır.</p>\n    <div class="steps"><div class="st on" id="st1">1 · Sözleri bul</div><div class="st" id="st2">2 · YouTube videosu</div></div>\n    <div class="card" id="step1">\n      <div class="row"><input class="input" id="q" placeholder="Şarkı adı ve/veya sanatçı… ör. Coldplay Yellow" style="flex:1"><button class="btn primary" id="searchBtn">Ara</button></div>\n      <div class="small muted" style="margin-top:8px">Sözler <b>LRCLIB</b> veritabanından gelir. <span class="tag sync">senkronlu</span> olanlar satır satır otomatik durdurmayı destekler.</div>\n      <div class="results" id="results"></div>\n      <details style="margin-top:16px"><summary class="muted" style="cursor:pointer">Bulamadın mı? Sözleri kendin yapıştır</summary>\n        <div class="grid" style="margin-top:12px">\n          <div class="row"><input class="input" id="mTitle" placeholder="Şarkı adı" style="flex:1"><input class="input" id="mArtist" placeholder="Sanatçı" style="flex:1"></div>\n          <textarea class="input" id="mLyrics" placeholder="Her satıra bir cümle gelecek şekilde sözleri yapıştır. (LRC formatı [00:12.34] da desteklenir.)"></textarea>\n          <div class="small muted">Zaman bilgisi yoksa, şarkıyı dinlerken her satırın başladığı anda tuşa basarak senkronlayacaksın (bir kerelik, ~3 dk).</div>\n          <div><button class="btn" id="manualBtn">Devam →</button></div>\n        </div>\n      </details>\n    </div>\n    <div class="card hidden" id="step2">\n      <div id="pickedInfo"></div>\n      <div class="row" style="margin-top:14px"><input class="input" id="yt" placeholder="YouTube linki (https://www.youtube.com/watch?v=...)" style="flex:1">\n        <a class="btn" id="ytSearch" target="_blank" rel="noopener">🔎 YouTube\'da ara</a></div>\n      <div class="small muted" style="margin-top:8px">İpucu: Resmî klip gömülmeye kapalıysa "audio" veya "lyrics" sürümünü dene. Lyrics videolarında sözleri gizlemek için oynatıcıda <b>“Videoyu gizle”</b> seçeneği var.</div>\n      <div id="ytPrev"></div>\n      <div class="row" style="margin-top:16px"><button class="btn" id="back">← Geri</button><span class="spacer"></span><button class="btn primary" id="saveSong" disabled>Kaydet ve başla ▶</button></div>\n    </div>\n  </div>';
+  app.innerHTML = '\n  <div class="view" style="max-width:860px;margin:0 auto">\n    <h1>Şarkı ekle</h1><p class="muted">'.concat(spCanPlay() ? "Önce sözleri bul; şarkı Spotify'da otomatik bulunur." : "Önce sözleri bul, sonra şarkının YouTube linkini yapıştır.", '</p>\n    <div class="steps"><div class="st on" id="st1">1 · Sözleri bul</div><div class="st" id="st2">2 · ').concat(spCanPlay() ? "Müzik" : "YouTube videosu", '</div></div>\n    <div class="card" id="step1">\n      <div class="row"><input class="input" id="q" placeholder="Şarkı adı ve/veya sanatçı… ör. Coldplay Yellow" style="flex:1"><button class="btn primary" id="searchBtn">Ara</button></div>\n      <div class="small muted" style="margin-top:8px">Sözler <b>LRCLIB</b> veritabanından gelir. <span class="tag sync">senkronlu</span> olanlar satır satır otomatik durdurmayı destekler.</div>\n      <div class="results" id="results"></div>\n      <details style="margin-top:16px"><summary class="muted" style="cursor:pointer">Bulamadın mı? Sözleri kendin yapıştır</summary>\n        <div class="grid" style="margin-top:12px">\n          <div class="row"><input class="input" id="mTitle" placeholder="Şarkı adı" style="flex:1"><input class="input" id="mArtist" placeholder="Sanatçı" style="flex:1"></div>\n          <textarea class="input" id="mLyrics" placeholder="Her satıra bir cümle gelecek şekilde sözleri yapıştır. (LRC formatı [00:12.34] da desteklenir.)"></textarea>\n          <div class="small muted">Zaman bilgisi yoksa, şarkıyı dinlerken her satırın başladığı anda tuşa basarak senkronlayacaksın (bir kerelik, ~3 dk).</div>\n          <div><button class="btn" id="manualBtn">Devam →</button></div>\n        </div>\n      </details>\n    </div>\n    <div class="card hidden" id="step2">\n      <div id="pickedInfo"></div>\n      <div id="spBox"></div>\n      <div class="small muted" id="ytLabel" style="margin-top:14px"></div>\n      <div class="row" style="margin-top:8px"><input class="input" id="yt" placeholder="YouTube linki (https://www.youtube.com/watch?v=...)" style="flex:1">\n        <a class="btn" id="ytSearch" target="_blank" rel="noopener">🔎 YouTube\'da ara</a></div>\n      <div class="small muted" style="margin-top:8px">İpucu: Resmî klip gömülmeye kapalıysa "audio" veya "lyrics" sürümünü dene. Lyrics videolarında sözleri gizlemek için oynatıcıda <b>“Videoyu gizle”</b> seçeneği var.</div>\n      <div id="ytPrev"></div>\n      <div class="row" style="margin-top:16px"><button class="btn" id="back">← Geri</button><span class="spacer"></span><button class="btn primary" id="saveSong" disabled>Kaydet ve başla ▶</button></div>\n    </div>\n  </div>');
   const doSearch = async () => {
     const q = $("#q").value.trim();
     if (!q) return;
@@ -739,7 +748,7 @@ function viewAdd() {
         const r = res[b.dataset.i];
         sfx.click();
         const lines = r.syncedLyrics ? parseLRC(r.syncedLyrics) : r.plainLyrics.split(/\r?\n/).map((t) => t.trim()).filter(Boolean).map((text) => ({ t: null, text }));
-        goStep2({ title: r.trackName, artist: r.artistName, lines, synced: !!r.syncedLyrics });
+        goStep2({ title: r.trackName, artist: r.artistName, lines, synced: !!r.syncedLyrics, duration: r.duration });
       });
     } catch (e) {
       box.innerHTML = '<div class="muted">Arama başarısız: '.concat(esc(e.message), ". İnternet bağlantını kontrol et.</div>");
@@ -762,6 +771,7 @@ function viewAdd() {
     goStep2({ title, artist, lines, synced: isLrc });
   };
   function goStep2(p) {
+    var _a2;
     picked = p;
     $("#step1").classList.add("hidden");
     $("#step2").classList.remove("hidden");
@@ -770,11 +780,48 @@ function viewAdd() {
     const sample = p.lines.filter((l) => l.text).slice(0, 8).map((l) => l.text).join("\n");
     $("#pickedInfo").innerHTML = "<h2>".concat(esc(p.title), ' <span class="muted" style="font-weight:500">— ').concat(esc(p.artist), '</span></h2>\n      <span class="tag ').concat(p.synced ? "sync" : "plain", '">').concat(p.synced ? "senkronlu sözler ✓" : "düz metin — ilk açılışta senkronlayacaksın", '</span>\n      <div class="preview-lyrics" style="margin-top:10px">').concat(esc(sample), "\n…</div>");
     $("#ytSearch").href = "https://www.youtube.com/results?search_query=".concat(encodeURIComponent("".concat(p.artist, " ").concat(p.title, " lyrics")));
-    if (!isTouch) $("#yt").focus();
+    spPick = null;
+    updateSave();
+    if (spCanPlay()) findOnSpotify(p);
+    else {
+      $("#ytLabel").innerHTML = "YouTube videosunun linkini yapıştır:";
+      $("#spBox").innerHTML = spEnabled() && !spLoggedIn() ? '<div class="sp-hint"><span>Spotify ile giriş yaparsan link aramana gerek kalmaz.</span><button class="btn sm sp-btn" id="spLoginAdd">Spotify ile giriş yap</button></div>' : "";
+      (_a2 = $("#spLoginAdd")) == null ? void 0 : _a2.addEventListener("click", spLogin);
+      if (!isTouch) $("#yt").focus();
+    }
+  }
+  let spPick = null;
+  async function findOnSpotify(p) {
+    const box = $("#spBox");
+    $("#ytLabel").innerHTML = "İstersen YouTube linki de ekleyebilirsin (Spotify çalmazsa yedek olur):";
+    box.innerHTML = '<div class="sp-box"><span class="spinner"></span> Spotify\'da aranıyor…</div>';
+    try {
+      const items = (await spSearch(p.title, p.artist, p.duration)).slice(0, 4);
+      if (picked !== p) return;
+      if (!items.length) {
+        box.innerHTML = '<div class="sp-box muted">Spotify\'da bulunamadı — YouTube linki ekle.</div>';
+        return;
+      }
+      spPick = items[0];
+      updateSave();
+      box.innerHTML = '<div class="sp-box"><div class="sp-box-title">🟢 Spotify\'da bulundu <span class="muted">· doğru sürümü seç</span></div>\n        '.concat(items.map((x, n) => '<button class="sp-item '.concat(n === 0 ? "on" : "", '" data-n="').concat(n, '"><img src="').concat(esc(x.image), '" alt=""><div class="meta"><b>').concat(esc(x.name), '</b><span class="small muted">').concat(esc(x.artist), " · ").concat(fmtTime(x.duration)).concat(p.duration && Math.abs(x.duration - p.duration) <= 2 ? ' · <span style="color:var(--good)">sözlerle aynı süre ✓</span>' : "", "</span></div><i>✓</i></button>")).join(""), "</div>");
+      $$(".sp-item", box).forEach((b) => b.onclick = () => {
+        $$(".sp-item", box).forEach((x) => x.classList.toggle("on", x === b));
+        spPick = items[+b.dataset.n];
+        sfx.click();
+        updateSave();
+      });
+    } catch (e) {
+      if (picked !== p) return;
+      box.innerHTML = '<div class="sp-box muted">Spotify araması başarısız ('.concat(esc(e.message), "). YouTube linki ekleyebilirsin.</div>");
+    }
+  }
+  function updateSave() {
+    $("#saveSong").disabled = !(spPick || ytId($("#yt").value));
   }
   $("#yt").oninput = () => {
     const id = ytId($("#yt").value);
-    $("#saveSong").disabled = !id;
+    updateSave();
     $("#ytPrev").innerHTML = id ? '<div class="yt-preview" style="background-image:url(\''.concat(ytThumb(id), "')\"></div>") : "";
   };
   $("#back").onclick = () => {
@@ -785,12 +832,216 @@ function viewAdd() {
   };
   $("#saveSong").onclick = () => {
     const id = uid();
-    S.songs[id] = { id, title: picked.title, artist: picked.artist, videoId: ytId($("#yt").value), lines: picked.lines, synced: picked.synced, offset: 0, done: { pick: [], type: [], gap: [] }, pos: { pick: 0, type: 0, gap: 0 }, created: Date.now() };
+    S.songs[id] = { id, title: picked.title, artist: picked.artist, videoId: ytId($("#yt").value), spotify: spPick || null, lines: picked.lines, synced: picked.synced, offset: 0, done: { pick: [], type: [], gap: [] }, pos: { pick: 0, type: 0, gap: 0 }, created: Date.now() };
     save();
     sfx.save();
     toast("🎵 Şarkı kaydedildi");
     location.hash = "#/play/".concat(id);
   };
+}
+const SPOTIFY_CLIENT_ID = "";
+const SP_REDIRECT = location.origin + location.pathname.replace(/index\.html$/, "");
+const SP_SCOPES = "streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state";
+const SP_KEY = "lyricly-spotify", SP_PKCE = "lyricly-spotify-pkce";
+const lsGet = (k) => {
+  try {
+    return JSON.parse(localStorage.getItem(k));
+  } catch (e) {
+    return null;
+  }
+};
+const lsSet = (k, v) => {
+  try {
+    v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v));
+  } catch (e) {
+  }
+};
+const spAuth = () => lsGet(SP_KEY);
+const spEnabled = () => !!SPOTIFY_CLIENT_ID;
+const spLoggedIn = () => {
+  var _a2;
+  return spEnabled() && !!((_a2 = spAuth()) == null ? void 0 : _a2.refresh);
+};
+const spPremium = () => {
+  var _a2, _b;
+  return ((_b = (_a2 = spAuth()) == null ? void 0 : _a2.user) == null ? void 0 : _b.product) === "premium";
+};
+const spCanPlay = () => spLoggedIn() && spPremium();
+const b64url = (buf) => btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function spLogin() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  const state = uid() + uid();
+  lsSet(SP_PKCE, { verifier, state, back: location.hash || "#/" });
+  const q = new URLSearchParams({ client_id: SPOTIFY_CLIENT_ID, response_type: "code", redirect_uri: SP_REDIRECT, code_challenge_method: "S256", code_challenge: challenge, scope: SP_SCOPES, state });
+  location.href = "https://accounts.spotify.com/authorize?".concat(q);
+}
+function spLogout() {
+  lsSet(SP_KEY, null);
+  toast("Spotify çıkışı yapıldı — şarkılar YouTube'dan açılacak");
+  route();
+}
+async function spTokenRequest(params) {
+  const r = await fetch("https://accounts.spotify.com/api/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(__spreadValues({ client_id: SPOTIFY_CLIENT_ID }, params)) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error_description || d.error || "Spotify ".concat(r.status));
+  return d;
+}
+async function spHandleRedirect() {
+  const qs = new URLSearchParams(location.search);
+  if (!qs.has("code") && !qs.has("error")) return;
+  const pk = lsGet(SP_PKCE);
+  lsSet(SP_PKCE, null);
+  history.replaceState(null, "", SP_REDIRECT + ((pk == null ? void 0 : pk.back) || "#/"));
+  if (qs.get("error")) return toast("Spotify girişi iptal edildi");
+  if (!pk || qs.get("state") !== pk.state) return toast("⚠️ Spotify girişi doğrulanamadı, tekrar dene");
+  try {
+    const d = await spTokenRequest({ grant_type: "authorization_code", code: qs.get("code"), redirect_uri: SP_REDIRECT, code_verifier: pk.verifier });
+    lsSet(SP_KEY, { access: d.access_token, refresh: d.refresh_token, exp: Date.now() + d.expires_in * 1e3 });
+    const me = await spApi("/me");
+    const a = spAuth();
+    a.user = { name: (me == null ? void 0 : me.display_name) || (me == null ? void 0 : me.id) || "", product: (me == null ? void 0 : me.product) || "" };
+    lsSet(SP_KEY, a);
+    if (a.user.product === "premium") {
+      sfx.level();
+      toast("🟢 Spotify'a bağlandın".concat(a.user.name ? ", ".concat(esc(a.user.name)) : "", "! Şarkılar artık Spotify'dan çalacak."), 4e3);
+    } else toast("Spotify bağlandı ama hesap Premium değil — Spotify sadece Premium'da şarkı çaldırmaya izin veriyor, YouTube kullanılacak.", 6e3);
+  } catch (e) {
+    lsSet(SP_KEY, null);
+    toast("⚠️ Spotify girişi başarısız: ".concat(esc(e.message)), 6e3);
+  }
+  route();
+}
+async function spToken() {
+  const a = spAuth();
+  if (!(a == null ? void 0 : a.refresh)) throw new Error("Spotify girişi yok");
+  if (Date.now() < a.exp - 6e4) return a.access;
+  const d = await spTokenRequest({ grant_type: "refresh_token", refresh_token: a.refresh });
+  a.access = d.access_token;
+  a.exp = Date.now() + d.expires_in * 1e3;
+  if (d.refresh_token) a.refresh = d.refresh_token;
+  lsSet(SP_KEY, a);
+  return a.access;
+}
+async function spApi(path, opts = {}, retry = true) {
+  var _a2;
+  const r = await fetch("https://api.spotify.com/v1".concat(path), __spreadProps(__spreadValues({}, opts), { headers: { Authorization: "Bearer ".concat(await spToken()), "Content-Type": "application/json" } }));
+  if (r.status === 401 && retry) {
+    const a = spAuth();
+    if (a) {
+      a.exp = 0;
+      lsSet(SP_KEY, a);
+    }
+    return spApi(path, opts, false);
+  }
+  if (r.status === 204) return null;
+  const d = await r.json().catch(() => null);
+  if (!r.ok) throw new Error(((_a2 = d == null ? void 0 : d.error) == null ? void 0 : _a2.message) || "Spotify ".concat(r.status));
+  return d;
+}
+const cleanTitle = (title, artist) => title.replace(new RegExp("^".concat(artist.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "\\s*[-–]\\s*"), "i"), "").replace(/\s*[([][^)\]]*(official|video|lyric|audio|remaster)[^)\]]*[)\]]/gi, "").trim();
+async function spSearch(title, artist, durationSec) {
+  var _a2;
+  const t = cleanTitle(title, artist);
+  const d = await spApi("/search?type=track&limit=8&q=".concat(encodeURIComponent("".concat(t, " ").concat(artist))));
+  const items = (((_a2 = d == null ? void 0 : d.tracks) == null ? void 0 : _a2.items) || []).map((x) => {
+    var _a3, _b, _c, _d;
+    return { id: x.id, name: x.name, artist: x.artists.map((a) => a.name).join(", "), image: ((_b = (_a3 = x.album.images) == null ? void 0 : _a3[1]) == null ? void 0 : _b.url) || ((_d = (_c = x.album.images) == null ? void 0 : _c[0]) == null ? void 0 : _d.url) || "", duration: x.duration_ms / 1e3 };
+  });
+  const score = (x) => (trLower(x.artist).includes(trLower(artist.split(/[,&]/)[0].trim())) ? 0 : 50) + (durationSec ? Math.abs(x.duration - durationSec) : 0) + (trLower(x.name).startsWith(trLower(t)) ? 0 : 10);
+  return items.sort((a, b) => score(a) - score(b));
+}
+function spStatusHTML() {
+  if (!spEnabled()) return "";
+  if (!spLoggedIn()) return '<div class="sp-status"><button class="btn sp-btn" id="spLogin">Spotify ile giriş yap</button>\n    <span class="small">Premium hesabın varsa şarkılar Spotify\'dan çalar. Giriş yapmazsan YouTube kullanılır.</span></div>';
+  const u = spAuth().user || {};
+  return '<div class="sp-status on"><span class="sp-dot"></span><span class="small"><b>Spotify'.concat(u.name ? " · ".concat(esc(u.name)) : "", "</b><br>\n    ").concat(spPremium() ? "Şarkılar Spotify'dan çalacak" : "Premium değil — şarkılar YouTube'dan çalacak", '</span><button class="btn sm ghost" id="spLogout">Çıkış</button></div>');
+}
+let spSdk = null;
+const loadSpotifySDK = () => spSdk || (spSdk = new Promise((res, rej) => {
+  var _a2;
+  if ((_a2 = window.Spotify) == null ? void 0 : _a2.Player) return res();
+  window.onSpotifyWebPlaybackSDKReady = res;
+  const s = document.createElement("script");
+  s.src = "https://sdk.scdn.co/spotify-player.js";
+  s.onerror = () => rej(new Error("Spotify oynatıcısı yüklenemedi"));
+  document.head.appendChild(s);
+}));
+function spotifyPlayer(trackId, h) {
+  let player = null, deviceId = null, started = false, starting = false, wantSeek = 0, dead = false;
+  let st = { pos: 0, ts: Date.now(), paused: true };
+  const setState = (s) => {
+    var _a2;
+    if (!s) return;
+    st = { pos: s.position / 1e3, ts: Date.now(), paused: s.paused };
+    starting = false;
+    (_a2 = h.onState) == null ? void 0 : _a2.call(h, s.paused ? 2 : 1);
+  };
+  const api = {
+    getCurrentTime: () => st.paused ? st.pos : st.pos + (Date.now() - st.ts) / 1e3,
+    getPlayerState: () => starting ? 3 : st.paused ? 2 : 1,
+    seekTo(sec) {
+      wantSeek = sec;
+      st = { pos: sec, ts: Date.now(), paused: st.paused };
+      if (started) player == null ? void 0 : player.seek(Math.round(sec * 1e3)).catch(() => {
+      });
+    },
+    playVideo() {
+      var _a2;
+      if (!player || !deviceId) return;
+      (_a2 = player.activateElement) == null ? void 0 : _a2.call(player);
+      if (started) {
+        player.resume().catch(() => {
+        });
+        return;
+      }
+      starting = true;
+      spApi("/me/player/play?device_id=".concat(deviceId), { method: "PUT", body: JSON.stringify({ uris: ["spotify:track:".concat(trackId)], position_ms: Math.round(wantSeek * 1e3) }) }).then(() => {
+        started = true;
+      }).catch((e) => {
+        starting = false;
+        h.onError("playback_error", e.message);
+      });
+    },
+    pauseVideo() {
+      st = { pos: api.getCurrentTime(), ts: Date.now(), paused: true };
+      player == null ? void 0 : player.pause().catch(() => {
+      });
+    },
+    setPlaybackRate() {
+    },
+    unloadModule() {
+    },
+    destroy() {
+      dead = true;
+      clearInterval(poll);
+      player == null ? void 0 : player.disconnect();
+    },
+    activate() {
+      var _a2;
+      (_a2 = player == null ? void 0 : player.activateElement) == null ? void 0 : _a2.call(player);
+    }
+  };
+  const poll = setInterval(() => {
+    player == null ? void 0 : player.getCurrentState().then((s) => {
+      if (s && !starting) setState(s);
+    }).catch(() => {
+    });
+  }, 1e3);
+  loadSpotifySDK().then(() => {
+    if (dead) return;
+    player = new window.Spotify.Player({ name: "Lyricly", getOAuthToken: (cb) => spToken().then(cb).catch(() => h.onError("authentication_error", "Oturum süresi doldu")), volume: 0.9 });
+    player.addListener("ready", ({ device_id }) => {
+      deviceId = device_id;
+      h.onReady();
+    });
+    player.addListener("player_state_changed", setState);
+    ["initialization_error", "authentication_error", "account_error", "playback_error"].forEach((ev) => player.addListener(ev, ({ message }) => h.onError(ev, message)));
+    player.connect().then((ok) => {
+      if (!ok) h.onError("initialization_error", "Bağlanılamadı");
+    });
+  }).catch((e) => h.onError("initialization_error", e.message));
+  return api;
 }
 const practiceIdx = (song) => song.lines.map((l, i) => l.text && tokens(l.text).length ? i : -1).filter((i) => i >= 0);
 const MODES = [
@@ -801,64 +1052,153 @@ const MODES = [
 ];
 const XP = { pick: 10, type: 15, gap: 8 };
 function viewPlay(song) {
+  var _a2;
   song.lastPlayed = Date.now();
   song.done = song.done || { pick: [], type: [], gap: [] };
   song.pos = song.pos || { pick: 0, type: 0, gap: 0 };
   save();
   const P = { song, player: null, ready: false, mode: song.synced ? song.lastMode || "pick" : "sync", stopAt: null, onStop: null, slow: false, curLine: -1, timer: null, idxs: practiceIdx(song), attempt: 0 };
   current.song = song;
-  app.innerHTML = '\n  <div class="view">\n    <div class="player-head"><a class="btn icon ghost" href="#/">←</a><div><h1>'.concat(esc(song.title), '</h1><div class="muted small">').concat(esc(song.artist), '</div></div></div>\n    <div class="player-layout">\n      <div>\n        <div class="video-wrap"><div id="yt"></div>\n          <div class="video-cover ').concat(S.settings.hideVideo ? "" : "hidden", '" id="cover"><div><div class="eq"><i></i><i></i><i></i><i></i></div>Video gizli — sadece dinle 🎧</div></div>\n        </div>\n        <div class="modes" id="modes"></div>\n        <div class="card exercise" id="ex"></div>\n      </div>\n      <div class="side">\n        <div class="card">\n          <div class="row" style="margin-bottom:10px"><h3 style="margin:0">Sözler</h3><span class="spacer"></span>\n            <label class="toggle" title="Henüz çözmediğin satırları bulanıklaştırır"><input type="checkbox" id="blurTog" ').concat(S.settings.blurLyrics ? "checked" : "", '><span class="sw"></span>Gizle</label></div>\n          <div class="lyrics" id="lyrics"></div>\n        </div>\n        <div class="card sync-panel">\n          <div class="row" style="margin-bottom:8px">\n            <label class="toggle"><input type="checkbox" id="hideTog" ').concat(S.settings.hideVideo ? "checked" : "", '><span class="sw"></span>Videoyu gizle</label><span class="spacer"></span>\n            <label class="toggle"><input type="checkbox" id="slowTog"><span class="sw"></span>Yavaş (0.75x)</label>\n          </div>\n          <div class="small muted" style="margin:10px 0 6px">Senkron ayarı — sözler erken/geç kalıyorsa düzelt:</div>\n          <div class="row"><button class="btn sm" data-off="-0.5">-0.5</button><button class="btn sm" data-off="-0.1">-0.1</button>\n            <span class="offset-val" id="offVal"></span><button class="btn sm" data-off="0.1">+0.1</button><button class="btn sm" data-off="0.5">+0.5</button></div>\n          <div class="row" style="margin-top:8px"><button class="btn sm" id="alignBtn" title="Şarkıyı baştan çal, ilk satır söylendiği anda bas">🎯 İlk satırı yakala</button>\n            <button class="btn sm ghost" id="resync">⟲ Elle yeniden senkronla</button></div>\n        </div>\n      </div>\n    </div>\n  </div>');
-  loadYT().then(() => {
-    if (current.song !== song) return;
-    P.player = new YT.Player("yt", {
-      videoId: song.videoId,
-      playerVars: { rel: 0, modestbranding: 1, playsinline: 1, cc_load_policy: 0, iv_load_policy: 3, origin: location.origin },
-      events: {
-        onReady: () => {
-          P.ready = true;
-          renderMode();
-        },
-        onStateChange: (e) => {
-          var _a2, _b;
-          if (e.data === 1 && P.mode !== "listen") {
-            try {
-              P.player.unloadModule("captions");
-              P.player.unloadModule("cc");
-            } catch (e2) {
-            }
+  app.innerHTML = '\n  <div class="view">\n    <div class="player-head"><a class="btn icon ghost" href="#/">←</a><div style="flex:1;min-width:0"><h1>'.concat(esc(song.title), '</h1><div class="muted small">').concat(esc(song.artist), '</div></div><span id="srcSwitch"></span></div>\n    <div class="player-layout">\n      <div>\n        <div class="video-wrap"><div id="yt"></div>\n          <div class="video-cover ').concat(S.settings.hideVideo ? "" : "hidden", '" id="cover"><div><div class="eq"><i></i><i></i><i></i><i></i></div>Video gizli — sadece dinle 🎧</div></div>\n        </div>\n        <div class="modes" id="modes"></div>\n        <div class="card exercise" id="ex"></div>\n      </div>\n      <div class="side">\n        <div class="card">\n          <div class="row" style="margin-bottom:10px"><h3 style="margin:0">Sözler</h3><span class="spacer"></span>\n            <label class="toggle" title="Henüz çözmediğin satırları bulanıklaştırır"><input type="checkbox" id="blurTog" ').concat(S.settings.blurLyrics ? "checked" : "", '><span class="sw"></span>Gizle</label></div>\n          <div class="lyrics" id="lyrics"></div>\n        </div>\n        <div class="card sync-panel">\n          <div class="row" style="margin-bottom:8px">\n            <label class="toggle"><input type="checkbox" id="hideTog" ').concat(S.settings.hideVideo ? "checked" : "", '><span class="sw"></span>Videoyu gizle</label><span class="spacer"></span>\n            <label class="toggle"><input type="checkbox" id="slowTog"><span class="sw"></span>Yavaş (0.75x)</label>\n          </div>\n          <div class="small muted" style="margin:10px 0 6px">Senkron ayarı — sözler erken/geç kalıyorsa düzelt:</div>\n          <div class="row"><button class="btn sm" data-off="-0.5">-0.5</button><button class="btn sm" data-off="-0.1">-0.1</button>\n            <span class="offset-val" id="offVal"></span><button class="btn sm" data-off="0.1">+0.1</button><button class="btn sm" data-off="0.5">+0.5</button></div>\n          <div class="row" style="margin-top:8px"><button class="btn sm" id="alignBtn" title="Şarkıyı baştan çal, ilk satır söylendiği anda bas">🎯 İlk satırı yakala</button>\n            <button class="btn sm ghost" id="resync">⟲ Elle yeniden senkronla</button></div>\n        </div>\n      </div>\n    </div>\n  </div>');
+  const wantSpotify = song.spotify && spCanPlay() && song.prefSource !== "youtube";
+  P.source = wantSpotify ? "spotify" : song.videoId ? "youtube" : "none";
+  $("#srcSwitch").innerHTML = song.spotify && song.videoId && spCanPlay() ? '<button class="btn sm ghost" id="srcBtn" title="Kaynağı değiştir">'.concat(P.source === "spotify" ? "🟢 Spotify" : "▶️ YouTube", " ⇄</button>") : "";
+  (_a2 = $("#srcBtn")) == null ? void 0 : _a2.addEventListener("click", () => {
+    song.prefSource = P.source === "spotify" ? "youtube" : "spotify";
+    save();
+    sfx.click();
+    route();
+  });
+  if (P.source === "spotify") startSpotify();
+  else if (P.source === "youtube") startYouTube();
+  else noSource();
+  $(".view").addEventListener("click", () => {
+    var _a3;
+    if (P.source === "spotify" && ((_a3 = P.player) == null ? void 0 : _a3.activate)) {
+      P.player.activate();
+      P.tapped = true;
+    }
+  }, true);
+  function startSpotify() {
+    const s = song.spotify;
+    $(".video-wrap").classList.add("sp");
+    $(".video-wrap").innerHTML = '<div class="sp-cover paused" id="spCover" style="--art:url(\''.concat(esc(s.image), '\')">\n      <div class="sp-art"></div>\n      <div class="sp-info"><div class="eq"><i></i><i></i><i></i><i></i></div><b>').concat(esc(s.name), "</b><span>").concat(esc(s.artist), '</span>\n        <a class="sp-link" href="https://open.spotify.com/track/').concat(esc(s.id), '" target="_blank" rel="noopener">Spotify ile çalınıyor ↗</a></div></div>');
+    $("#hideTog").closest(".toggle").classList.add("hidden");
+    $("#slowTog").closest(".toggle").classList.add("hidden");
+    P.player = spotifyPlayer(s.id, {
+      onReady: () => {
+        if (current.song !== song) return;
+        P.ready = true;
+        renderMode();
+      },
+      onState: (stt) => {
+        var _a3, _b;
+        (_a3 = $("#spCover")) == null ? void 0 : _a3.classList.toggle("paused", stt !== 1);
+        if (P.mode === "listen" || P.mode === "sync") (_b = renderMode.tick) == null ? void 0 : _b.call(renderMode);
+      },
+      onError: (kind, msg) => {
+        if (current.song !== song || P.spFailed) return;
+        P.spFailed = true;
+        if (kind === "account_error") {
+          const a = spAuth();
+          if (a == null ? void 0 : a.user) {
+            a.user.product = "free";
+            lsSet(SP_KEY, a);
           }
-          (_a2 = $("#cover")) == null ? void 0 : _a2.classList.toggle("paused", e.data !== 1);
-          if (P.mode === "listen" || P.mode === "sync") (_b = renderMode.tick) == null ? void 0 : _b.call(renderMode);
-        },
-        onError: (e) => {
-          const msg = { 2: "Geçersiz video linki.", 5: "Video oynatılamadı.", 100: "Video bulunamadı veya kaldırılmış.", 101: "Bu video başka sitelerde oynatılmaya izin vermiyor.", 150: "Bu video başka sitelerde oynatılmaya izin vermiyor.", 153: "Video oynatıcısı yapılandırma hatası (sayfayı http://localhost üzerinden aç)." }[e.data] || "Video hatası: " + e.data;
-          const err = document.createElement("div");
-          err.className = "yt-error";
-          err.innerHTML = "<div><b>⚠️ ".concat(msg, '</b><br><span class="muted small">Aynı şarkının "lyrics" ya da "audio" videosunu dene.</span>\n            <div class="row" style="justify-content:center;margin-top:12px"><input class="input" id="newYt" placeholder="Yeni YouTube linki" style="max-width:320px"><button class="btn primary" id="newYtBtn">Değiştir</button></div></div>');
-          $(".video-wrap").appendChild(err);
-          $("#newYtBtn").onclick = () => {
-            const id = ytId($("#newYt").value);
-            if (!id) return;
-            song.videoId = id;
-            save();
-            route();
-          };
+        }
+        const why = kind === "account_error" ? "Spotify Premium gerekiyor." : "Spotify oynatılamadı (".concat(msg || kind, ").");
+        if (song.videoId) {
+          toast("⚠️ ".concat(esc(why), " YouTube'a geçiliyor."), 5e3);
+          song.prefSource = "youtube";
+          route();
+        } else {
+          toast("⚠️ ".concat(esc(why)), 5e3);
+          noSource(why);
         }
       }
     });
-  });
+  }
+  function noSource(why) {
+    var _a3;
+    P.ready = false;
+    $(".video-wrap").innerHTML = '<div class="yt-error"><div><b>'.concat(esc(why || (song.spotify ? "Bu şarkı Spotify'dan eklendi." : "Bu şarkının videosu yok.")), '</b><br>\n      <span class="muted small">').concat(spEnabled() && song.spotify && !spLoggedIn() ? "Spotify ile giriş yap ya da" : "", ' bir YouTube linki ekle:</span>\n      <div class="row" style="justify-content:center;margin-top:12px">').concat(spEnabled() && song.spotify && !spLoggedIn() ? '<button class="btn sp-btn" id="spLoginHere">Spotify ile giriş yap</button>' : "", '\n      <input class="input" id="newYt" placeholder="YouTube linki" style="max-width:300px"><button class="btn primary" id="newYtBtn">Ekle</button></div></div></div>');
+    (_a3 = $("#spLoginHere")) == null ? void 0 : _a3.addEventListener("click", spLogin);
+    $("#newYtBtn").onclick = () => {
+      const id = ytId($("#newYt").value);
+      if (!id) return toast("Geçerli bir YouTube linki yapıştır");
+      song.videoId = id;
+      song.prefSource = "youtube";
+      save();
+      route();
+    };
+    $("#ex").innerHTML = '<div class="empty"><div class="big">🎧</div><p>Önce bir müzik kaynağı seç.</p></div>';
+  }
+  function startYouTube() {
+    loadYT().then(() => {
+      if (current.song !== song) return;
+      P.player = new YT.Player("yt", {
+        videoId: song.videoId,
+        playerVars: { rel: 0, modestbranding: 1, playsinline: 1, cc_load_policy: 0, iv_load_policy: 3, origin: location.origin },
+        events: {
+          onReady: () => {
+            P.ready = true;
+            renderMode();
+          },
+          onStateChange: (e) => {
+            var _a3, _b;
+            if (e.data === 1 && P.mode !== "listen") {
+              try {
+                P.player.unloadModule("captions");
+                P.player.unloadModule("cc");
+              } catch (e2) {
+              }
+            }
+            (_a3 = $("#cover")) == null ? void 0 : _a3.classList.toggle("paused", e.data !== 1);
+            if (P.mode === "listen" || P.mode === "sync") (_b = renderMode.tick) == null ? void 0 : _b.call(renderMode);
+          },
+          onError: (e) => {
+            const msg = { 2: "Geçersiz video linki.", 5: "Video oynatılamadı.", 100: "Video bulunamadı veya kaldırılmış.", 101: "Bu video başka sitelerde oynatılmaya izin vermiyor.", 150: "Bu video başka sitelerde oynatılmaya izin vermiyor.", 153: "Video oynatıcısı yapılandırma hatası (sayfayı http://localhost üzerinden aç)." }[e.data] || "Video hatası: " + e.data;
+            const err = document.createElement("div");
+            err.className = "yt-error";
+            err.innerHTML = "<div><b>⚠️ ".concat(msg, '</b><br><span class="muted small">Aynı şarkının "lyrics" ya da "audio" videosunu dene.</span>\n            <div class="row" style="justify-content:center;margin-top:12px"><input class="input" id="newYt" placeholder="Yeni YouTube linki" style="max-width:320px"><button class="btn primary" id="newYtBtn">Değiştir</button></div></div>');
+            $(".video-wrap").appendChild(err);
+            $("#newYtBtn").onclick = () => {
+              const id = ytId($("#newYt").value);
+              if (!id) return;
+              song.videoId = id;
+              save();
+              route();
+            };
+          }
+        }
+      });
+    });
+  }
   const now = () => P.ready ? P.player.getCurrentTime() : 0;
   const lineStart = (i) => song.lines[i].t + song.offset;
   function lineEnd(i) {
-    var _a2;
+    var _a3;
     const st = song.lines[i].t;
-    let nx = (_a2 = song.lines[i + 1]) == null ? void 0 : _a2.t;
+    let nx = (_a3 = song.lines[i + 1]) == null ? void 0 : _a3.t;
     const est = st + Math.max(2.5, tokens(song.lines[i].text).length * 0.55 + 1.5);
     if (nx == null || nx - st > 12) nx = Math.min(nx != null ? nx : Infinity, est + 2);
     return nx + song.offset - 0.08;
   }
   function playLine(i, onStop) {
-    if (!P.ready) return toast("Video yükleniyor…");
+    if (!P.ready) return toast(P.source === "spotify" ? "Spotify bağlanıyor…" : "Video yükleniyor…");
+    if (P.source === "spotify" && !P.tapped) {
+      if (!$(".tap-start")) {
+        $(".video-wrap").insertAdjacentHTML("beforeend", '<button class="tap-start sp-tap"><div>▶ Başlamak için dokun</div></button>');
+        $(".sp-tap").onclick = () => {
+          P.tapped = true;
+          P.player.activate();
+          $(".sp-tap").remove();
+          sfx.click();
+          playLine(i, onStop);
+        };
+      }
+      return;
+    }
     P.player.setPlaybackRate(P.slow ? S.settings.slowRate : 1);
     P.player.seekTo(Math.max(0, lineStart(i) - 0.25), true);
     P.player.playVideo();
@@ -875,14 +1215,14 @@ function viewPlay(song) {
     }
   }
   P.timer = setInterval(() => {
-    var _a2, _b, _c, _d, _e, _f, _g, _h;
+    var _a3, _b, _c, _d, _e, _f, _g, _h;
     if (!P.ready) return;
     const t = now();
-    const st = (_b = (_a2 = P.player).getPlayerState) == null ? void 0 : _b.call(_a2);
+    const st = (_b = (_a3 = P.player).getPlayerState) == null ? void 0 : _b.call(_a3);
     if (st === 1) {
       P.wantPlay = null;
       (_c = $(".tap-start")) == null ? void 0 : _c.remove();
-    } else if (P.wantPlay && st !== 3 && Date.now() - P.wantPlay > 1500 && !$(".tap-start")) {
+    } else if (P.source === "youtube" && P.wantPlay && st !== 3 && Date.now() - P.wantPlay > 1500 && !$(".tap-start")) {
       (_d = $(".video-wrap")) == null ? void 0 : _d.insertAdjacentHTML("beforeend", '<div class="tap-start"><div>▶ Başlatmak için videoya dokun</div></div>');
       (_e = $(".video-wrap")) == null ? void 0 : _e.scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -906,10 +1246,10 @@ function viewPlay(song) {
     }
   }, 40);
   current.cleanup = () => {
-    var _a2;
+    var _a3;
     clearInterval(P.timer);
     try {
-      (_a2 = P.player) == null ? void 0 : _a2.destroy();
+      (_a3 = P.player) == null ? void 0 : _a3.destroy();
     } catch (e) {
     }
     document.removeEventListener("keydown", onKey);
@@ -1087,8 +1427,8 @@ function viewPlay(song) {
   async function showTranslations(line) {
     const words = [...new Set(tokens(line).map(norm))].filter((w) => !GLOSS_SKIP.has(w));
     const stillHere = () => {
-      var _a2;
-      return $("#lineTr") && ((_a2 = $("#fb .full")) == null ? void 0 : _a2.textContent) === line;
+      var _a3;
+      return $("#lineTr") && ((_a3 = $("#fb .full")) == null ? void 0 : _a3.textContent) === line;
     };
     words.forEach((w) => {
       if (!FUNC[w]) {
@@ -1138,8 +1478,8 @@ function viewPlay(song) {
     $("#ex").innerHTML = '<div class="karaoke"><div class="prev" id="kPrev"></div><div class="now" id="kNow">▶ Oynat\'a bas ve şarkıyla birlikte oku</div><div class="next" id="kNext"></div></div>\n      <div class="ex-actions" style="justify-content:center">\n        <button class="btn primary" id="kPlay">▶ Oynat / Duraklat <span class="kbd">Space</span></button>\n        <button class="btn" id="kBack">⏪ 5 sn</button><button class="btn" id="kRestart">⏮ Baştan</button>\n      </div><p class="small muted" style="text-align:center;margin-top:16px">Bilmediğin kelimeye tıkla → anlamını gör, deftere ekle. Sağdaki bir satıra tıklayınca oraya atlar.</p>';
     renderMode.onLine = (cur) => {
       const L = (j) => {
-        var _a2;
-        return ((_a2 = song.lines[j]) == null ? void 0 : _a2.text) || "";
+        var _a3;
+        return ((_a3 = song.lines[j]) == null ? void 0 : _a3.text) || "";
       };
       const prevI = (() => {
         for (let j = cur - 1; j >= 0; j--) if (L(j)) return j;
@@ -1206,7 +1546,7 @@ function viewPlay(song) {
       }
     };
     bindCommon(k, i, () => {
-      var _a2;
+      var _a3;
       if (!chosen.length) return;
       P.attempt++;
       const ok = chosen.length === target.length && chosen.every((c, n) => norm(c.w) === norm(target[n]));
@@ -1220,7 +1560,7 @@ function viewPlay(song) {
       $$("#zone .chip").forEach((el, n) => el.classList.add(norm(chosen[n].w) === norm(target[n] || "") ? "c-ok" : "c-no"));
       const hint = P.attempt >= 2 ? '<div class="small muted" style="margin-top:6px">İpucu: cümle <b>“'.concat(esc(target.slice(0, Math.min(target.length - 1, P.attempt)).join(" ")), " …”</b> diye başlıyor.</div>") : "";
       fail($("#zone"), "<b>Tam değil.</b> Yeşiller doğru yerde. Tekrar dinleyip düzelt. ".concat(hint, "\n        ").concat(P.attempt >= 3 ? '<div class="row" style="margin-top:8px"><button class="btn sm" id="reveal">👀 Cevabı göster</button></div>' : ""));
-      (_a2 = $("#reveal")) == null ? void 0 : _a2.addEventListener("click", () => {
+      (_a3 = $("#reveal")) == null ? void 0 : _a3.addEventListener("click", () => {
         $("#fb").innerHTML = '<b>Doğru cevap:</b><div class="full">'.concat(wordsHTML(song.lines[i].text), "</div>");
       });
     });
@@ -1252,7 +1592,7 @@ function viewPlay(song) {
       sfx.pop();
     };
     bindCommon(k, i, () => {
-      var _a2;
+      var _a3;
       const typed = tokens(inp.value);
       if (!typed.length) return;
       P.attempt++;
@@ -1268,7 +1608,7 @@ function viewPlay(song) {
       } else {
         const hit = al.filter((a) => a.type === "ok" || a.type === "near").length;
         fail(inp, "<b>".concat(hit, "/").concat(target.length, ' kelime doğru.</b> <span class="muted">Kırmızı kesikli olanlar eksik, üstü çizili olanlar fazla.</span>\n          ').concat(P.attempt >= 3 ? '<div class="row" style="margin-top:8px"><button class="btn sm" id="reveal">👀 Cevabı göster</button></div>' : ""));
-        (_a2 = $("#reveal")) == null ? void 0 : _a2.addEventListener("click", () => {
+        (_a3 = $("#reveal")) == null ? void 0 : _a3.addEventListener("click", () => {
           $("#fb").innerHTML = '<b>Doğru cevap:</b><div class="full">'.concat(wordsHTML(song.lines[i].text), '</div><div class="small muted">Şimdi kendin yazıp geç.</div>');
         });
       }
@@ -1292,8 +1632,8 @@ function viewPlay(song) {
     );
     const ins = $$(".gap-line input");
     if (!isTouch) setTimeout(() => {
-      var _a2;
-      return (_a2 = ins[0]) == null ? void 0 : _a2.focus();
+      var _a3;
+      return (_a3 = ins[0]) == null ? void 0 : _a3.focus();
     }, 50);
     ins.forEach((inp, n) => inp.addEventListener("keydown", (e) => {
       if (e.key === " " && ins[n + 1]) {
@@ -1302,7 +1642,7 @@ function viewPlay(song) {
       }
     }));
     bindCommon(k, i, () => {
-      var _a2, _b;
+      var _a3, _b;
       if (ins.every((x) => !x.value.trim())) return;
       P.attempt++;
       let all = true;
@@ -1317,7 +1657,7 @@ function viewPlay(song) {
         return succeed(k, i, $(".gap-line"));
       }
       fail($(".gap-line"), "<b>Kırmızı kutuları tekrar dene.</b> ".concat(P.attempt >= 2 ? '<span class="muted">İpucu: '.concat(ins.filter((x) => x.className === "no").map((x) => "<b>".concat(esc(x.dataset.ans[0])).concat("_".repeat(x.dataset.ans.length - 1), "</b>")).join(", "), "</span>") : "", "\n        ").concat(P.attempt >= 3 ? '<div class="row" style="margin-top:8px"><button class="btn sm" id="reveal">👀 Cevabı göster</button></div>' : ""));
-      (_a2 = $("#reveal")) == null ? void 0 : _a2.addEventListener("click", () => ins.forEach((x) => {
+      (_a3 = $("#reveal")) == null ? void 0 : _a3.addEventListener("click", () => ins.forEach((x) => {
         x.placeholder = x.dataset.ans;
         x.value = "";
         x.className = "";
@@ -1332,9 +1672,9 @@ function viewPlay(song) {
     const times = [];
     $("#ex").innerHTML = '<h2>⏱️ Sözleri senkronla</h2>\n      <p class="muted small">Şarkıyı baştan çal. Aşağıdaki satır <b>söylenmeye başladığı anda</b> <span class="kbd">Space</span>\'e (veya büyük butona) bas. Yanlış basarsan <span class="kbd">Backspace</span> ile geri al. Bir kez yapınca şarkı tüm modlarda satır satır durur.</p>\n      <div class="tap-next small" id="tPrev"></div><div class="tap-line" id="tLine"></div><div class="tap-next" id="tNext"></div>\n      <div class="ex-actions sync-acts" style="justify-content:center">\n        <button class="btn" id="tStart">▶ Baştan çal</button>\n        <button class="btn primary" id="tTap" style="padding:16px 34px;font-size:16px">👆 Bu satır başladı <span class="kbd">Space</span></button>\n        <button class="btn ghost" id="tUndo">↶ Geri al</button>\n      </div><div class="prog" style="margin-top:14px"><div id="tProg" style="width:0"></div></div>';
     const draw = () => {
-      var _a2, _b;
+      var _a3, _b;
       $("#tPrev").textContent = pos > 0 ? "✓ ".concat(lines[pos - 1]) : "";
-      $("#tLine").textContent = (_a2 = lines[pos]) != null ? _a2 : "🎉 Bitti!";
+      $("#tLine").textContent = (_a3 = lines[pos]) != null ? _a3 : "🎉 Bitti!";
       $("#tNext").textContent = (_b = lines[pos + 1]) != null ? _b : "";
       $("#tProg").style.width = "".concat(pos / lines.length * 100, "%");
     };
@@ -1385,8 +1725,8 @@ function viewPlay(song) {
     P.syncKeys = { tap, undo };
   }
   function onKey(e) {
-    var _a2, _b, _c, _d, _e;
-    if ((_b = (_a2 = e.target).closest) == null ? void 0 : _b.call(_a2, "#wordPop")) return;
+    var _a3, _b, _c, _d, _e;
+    if ((_b = (_a3 = e.target).closest) == null ? void 0 : _b.call(_a3, "#wordPop")) return;
     const inField = /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) && !e.target.disabled;
     if (e.key === "Escape") return closeWord();
     if (P.mode === "sync" && P.syncKeys && !inField) {
@@ -1599,6 +1939,7 @@ function bindBackup() {
 }
 renderHud();
 route();
+if (spEnabled()) spHandleRedirect().catch((e) => showError(e.message));
 (_a = window.speechSynthesis) == null ? void 0 : _a.getVoices();
 window.__lyriclyOK = true;
 if ("serviceWorker" in navigator && location.protocol === "https:") {
