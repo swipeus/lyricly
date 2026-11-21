@@ -19,7 +19,7 @@ var __spreadValues = (a, b) => {
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 var _a;
-const APP_VERSION = 8;
+const APP_VERSION = 9;
 const isTouch = matchMedia("(hover: none)").matches;
 const iosVer = (navigator.userAgent.match(/OS (\d+)_(\d+)/) || []).slice(1).join(".");
 let lastErr = "";
@@ -315,6 +315,23 @@ async function translateFull(text) {
   return res;
 }
 const translate = async (text) => (await translateFull(text)).text;
+const wordTr = /* @__PURE__ */ new Map();
+async function translateWords(words) {
+  const todo = words.filter((w) => !wordTr.has(w));
+  if (todo.length) {
+    try {
+      const r = await fetch("https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=".concat(encodeURIComponent(todo.join("\n"))));
+      if (!r.ok) throw 0;
+      const parts = ((await r.json())[0] || []).map((s) => s[0]).join("").split("\n").map((s) => s.trim());
+      if (parts.length !== todo.length) throw 0;
+      todo.forEach((w, n) => wordTr.set(w, parts[n]));
+    } catch (e) {
+      await Promise.all(todo.map((w) => translate(w).then((t) => wordTr.set(w, t)).catch(() => wordTr.set(w, "—"))));
+    }
+  }
+  return words.map((w) => wordTr.get(w) || "—");
+}
+const GLOSS_SKIP = new Set("a an the oh ooh ohh yeah ya la na hey uh ah ha mm hmm whoa woah".split(" "));
 async function translateMM(text) {
   var _a2;
   const r = await fetch("https://api.mymemory.translated.net/get?q=".concat(encodeURIComponent(text), "&langpair=en|tr"));
@@ -412,24 +429,21 @@ $("#wordPop").addEventListener("click", (e) => {
   if (a === "close") closeWord();
   if (a === "say") speak(popCtx.word);
   if (a === "save" && popCtx && !S.vocab[popCtx.word]) {
-    S.vocab[popCtx.word] = {
-      word: popCtx.word,
-      tr: popCtx.tr || "",
-      def: ((_d = (_c = (_b = popCtx.def) == null ? void 0 : _b.defs) == null ? void 0 : _c[0]) == null ? void 0 : _d.def) || "",
-      ctx: popCtx.ctxLine || "",
-      song: S.songs[popCtx.songId] ? "".concat(S.songs[popCtx.songId].artist, " – ").concat(S.songs[popCtx.songId].title) : "",
-      box: 0,
-      due: Date.now(),
-      added: Date.now()
-    };
-    save();
-    sfx.save();
-    renderHud();
+    addVocab(popCtx.word, popCtx.tr, (_d = (_c = (_b = popCtx.def) == null ? void 0 : _b.defs) == null ? void 0 : _c[0]) == null ? void 0 : _d.def, popCtx.ctxLine, popCtx.songId);
     e.target.textContent = "✓ Defterde";
     e.target.classList.remove("primary");
-    toast("📒 <b>".concat(esc(popCtx.word), "</b> deftere eklendi"));
   }
 });
+function addVocab(word, tr, def, ctxLine, songId) {
+  if (S.vocab[word]) return false;
+  const s = S.songs[songId];
+  S.vocab[word] = { word, tr: tr || "", def: def || "", ctx: ctxLine || "", song: s ? "".concat(s.artist, " – ").concat(s.title) : "", box: 0, due: Date.now(), added: Date.now() };
+  save();
+  sfx.save();
+  renderHud();
+  toast("📒 <b>".concat(esc(word), "</b> deftere eklendi"));
+  return true;
+}
 function closeWord() {
   $("#wordPop").classList.add("hidden");
   popCtx = null;
@@ -861,17 +875,33 @@ function viewPlay(song) {
     addXP(gain, el);
     const fb = $("#fb");
     fb.className = "feedback show ok";
-    fb.innerHTML = "<b>".concat(first ? "🎉 Mükemmel, ilk denemede!" : "✅ Doğru!", '</b><div class="full">').concat(wordsHTML(song.lines[i].text), '</div><div class="tr" id="lineTr"></div>');
-    $("#acts").innerHTML = '<button class="btn" id="replay2" title="Dinle">🔁<span class="btn-label"> Dinle</span></button><button class="btn ghost" id="trBtn">TR Türkçesi</button><span class="spacer"></span><button class="btn good" id="next">Sonraki satır → <span class="kbd">Enter</span></button>';
+    const line = song.lines[i].text;
+    fb.innerHTML = "<b>".concat(first ? "🎉 Mükemmel, ilk denemede!" : "✅ Doğru!", '</b><div class="full">').concat(wordsHTML(line), '</div>\n      <div class="tr" id="lineTr"><span class="spinner"></span></div>\n      <div class="gloss-title">Kelimeler <span class="muted">· deftere eklemek için dokun</span></div><div class="gloss" id="gloss"><span class="spinner"></span></div>');
+    $("#acts").innerHTML = '<button class="btn" id="replay2" title="Dinle">🔁<span class="btn-label"> Dinle</span></button><span class="spacer"></span><button class="btn good" id="next">Sonraki satır → <span class="kbd">Enter</span></button>';
     $("#replay2").onclick = () => playLine(i);
-    $("#trBtn").onclick = async () => {
-      $("#lineTr").innerHTML = '<span class="spinner"></span>';
-      $("#lineTr").textContent = await translate(song.lines[i].text).catch(() => "Çeviri alınamadı");
-    };
+    showTranslations(line);
     $("#next").onclick = () => nextLine(k);
     P.awaitNext = () => nextLine(k);
     renderLyrics();
     highlightLine(i);
+  }
+  async function showTranslations(line) {
+    var _a2;
+    const words = [...new Set(tokens(line).map(norm))].filter((w) => !GLOSS_SKIP.has(w));
+    const [lineTr, wordTrs] = await Promise.all([
+      translate(line).catch(() => ""),
+      translateWords(words).catch(() => words.map(() => "—"))
+    ]);
+    const lt = $("#lineTr"), gl = $("#gloss");
+    if (!lt || !gl || ((_a2 = $("#fb .full")) == null ? void 0 : _a2.textContent) !== line) return;
+    lt.textContent = lineTr ? "🇹🇷 ".concat(lineTr) : "Çeviri alınamadı";
+    gl.innerHTML = words.map((w, n) => '<button class="gl '.concat(S.vocab[w] ? "saved" : "", '" data-w="').concat(esc(w), '" data-tr="').concat(esc(wordTrs[n]), '">\n      <b>').concat(esc(w), "</b><span>").concat(esc(wordTrs[n]), "</span><i>").concat(S.vocab[w] ? "✓" : "＋", "</i></button>")).join("");
+    $$("#gloss .gl").forEach((b) => b.onclick = () => {
+      if (addVocab(b.dataset.w, b.dataset.tr, "", line, song.id)) {
+        b.classList.add("saved");
+        b.querySelector("i").textContent = "✓";
+      } else speak(b.dataset.w);
+    });
   }
   function fail(el, html) {
     S.stats.attempts += P.attempt === 1 ? 1 : 0;

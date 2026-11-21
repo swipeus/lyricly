@@ -3,7 +3,7 @@
  * Dış servisler: YouTube IFrame API, LRCLIB (senkron sözler), MyMemory (çeviri),
  * dictionaryapi.dev (İngilizce tanım). */
 'use strict';
-const APP_VERSION = 8; // keep in sync with ?v= in index.html and VERSION in sw.js
+const APP_VERSION = 9; // keep in sync with ?v= in index.html and VERSION in sw.js
 const isTouch = matchMedia('(hover: none)').matches;
 const iosVer = (navigator.userAgent.match(/OS (\d+)_(\d+)/) || []).slice(1).join('.');
 
@@ -215,6 +215,24 @@ async function translateFull(text) {
   trCache.set(key, res); return res;
 }
 const translate = async (text) => (await translateFull(text)).text;
+// Translate many single words with one request (one word per line), falling back to one request per word
+const wordTr = new Map();
+async function translateWords(words) {
+  const todo = words.filter((w) => !wordTr.has(w));
+  if (todo.length) {
+    try {
+      const r = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodeURIComponent(todo.join('\n'))}`);
+      if (!r.ok) throw 0;
+      const parts = ((await r.json())[0] || []).map((s) => s[0]).join('').split('\n').map((s) => s.trim());
+      if (parts.length !== todo.length) throw 0;
+      todo.forEach((w, n) => wordTr.set(w, parts[n]));
+    } catch {
+      await Promise.all(todo.map((w) => translate(w).then((t) => wordTr.set(w, t)).catch(() => wordTr.set(w, '—'))));
+    }
+  }
+  return words.map((w) => wordTr.get(w) || '—');
+}
+const GLOSS_SKIP = new Set('a an the oh ooh ohh yeah ya la na hey uh ah ha mm hmm whoa woah'.split(' '));
 async function translateMM(text) {
   const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|tr`);
   const d = await r.json();
@@ -304,16 +322,18 @@ $('#wordPop').addEventListener('click', (e) => {
   if (a === 'close') closeWord();
   if (a === 'say') speak(popCtx.word);
   if (a === 'save' && popCtx && !S.vocab[popCtx.word]) {
-    S.vocab[popCtx.word] = {
-      word: popCtx.word, tr: popCtx.tr || '', def: popCtx.def?.defs?.[0]?.def || '', ctx: popCtx.ctxLine || '',
-      song: S.songs[popCtx.songId] ? `${S.songs[popCtx.songId].artist} – ${S.songs[popCtx.songId].title}` : '',
-      box: 0, due: Date.now(), added: Date.now(),
-    };
-    save(); sfx.save(); renderHud();
+    addVocab(popCtx.word, popCtx.tr, popCtx.def?.defs?.[0]?.def, popCtx.ctxLine, popCtx.songId);
     e.target.textContent = '✓ Defterde'; e.target.classList.remove('primary');
-    toast(`📒 <b>${esc(popCtx.word)}</b> deftere eklendi`);
   }
 });
+function addVocab(word, tr, def, ctxLine, songId) {
+  if (S.vocab[word]) return false;
+  const s = S.songs[songId];
+  S.vocab[word] = { word, tr: tr || '', def: def || '', ctx: ctxLine || '', song: s ? `${s.artist} – ${s.title}` : '', box: 0, due: Date.now(), added: Date.now() };
+  save(); sfx.save(); renderHud();
+  toast(`📒 <b>${esc(word)}</b> deftere eklendi`);
+  return true;
+}
 function closeWord() { $('#wordPop').classList.add('hidden'); popCtx = null; }
 document.addEventListener('mousedown', (e) => { if (!e.target.closest('#wordPop') && !e.target.closest('.w')) closeWord(); });
 // Delegated: any .w span opens the popover
@@ -698,13 +718,33 @@ function viewPlay(song) {
     const gain = Math.round(XP[P.mode] * (first ? 1.5 : 1));
     save(); sfx.good(); addXP(gain, el);
     const fb = $('#fb'); fb.className = 'feedback show ok';
-    fb.innerHTML = `<b>${first ? '🎉 Mükemmel, ilk denemede!' : '✅ Doğru!'}</b><div class="full">${wordsHTML(song.lines[i].text)}</div><div class="tr" id="lineTr"></div>`;
-    $('#acts').innerHTML = `<button class="btn" id="replay2" title="Dinle">🔁<span class="btn-label"> Dinle</span></button><button class="btn ghost" id="trBtn">TR Türkçesi</button><span class="spacer"></span><button class="btn good" id="next">Sonraki satır → <span class="kbd">Enter</span></button>`;
+    const line = song.lines[i].text;
+    fb.innerHTML = `<b>${first ? '🎉 Mükemmel, ilk denemede!' : '✅ Doğru!'}</b><div class="full">${wordsHTML(line)}</div>
+      <div class="tr" id="lineTr"><span class="spinner"></span></div>
+      <div class="gloss-title">Kelimeler <span class="muted">· deftere eklemek için dokun</span></div><div class="gloss" id="gloss"><span class="spinner"></span></div>`;
+    $('#acts').innerHTML = `<button class="btn" id="replay2" title="Dinle">🔁<span class="btn-label"> Dinle</span></button><span class="spacer"></span><button class="btn good" id="next">Sonraki satır → <span class="kbd">Enter</span></button>`;
     $('#replay2').onclick = () => playLine(i);
-    $('#trBtn').onclick = async () => { $('#lineTr').innerHTML = '<span class="spinner"></span>'; $('#lineTr').textContent = await translate(song.lines[i].text).catch(() => 'Çeviri alınamadı'); };
+    showTranslations(line);
     $('#next').onclick = () => nextLine(k);
     P.awaitNext = () => nextLine(k);
     renderLyrics(); highlightLine(i);
+  }
+  // After a correct answer: Turkish meaning of the whole line + each word, tap a word to save it
+  async function showTranslations(line) {
+    const words = [...new Set(tokens(line).map(norm))].filter((w) => !GLOSS_SKIP.has(w));
+    const [lineTr, wordTrs] = await Promise.all([
+      translate(line).catch(() => ''),
+      translateWords(words).catch(() => words.map(() => '—')),
+    ]);
+    const lt = $('#lineTr'), gl = $('#gloss');
+    if (!lt || !gl || $('#fb .full')?.textContent !== line) return; // user already moved on
+    lt.textContent = lineTr ? `🇹🇷 ${lineTr}` : 'Çeviri alınamadı';
+    gl.innerHTML = words.map((w, n) => `<button class="gl ${S.vocab[w] ? 'saved' : ''}" data-w="${esc(w)}" data-tr="${esc(wordTrs[n])}">
+      <b>${esc(w)}</b><span>${esc(wordTrs[n])}</span><i>${S.vocab[w] ? '✓' : '＋'}</i></button>`).join('');
+    $$('#gloss .gl').forEach((b) => b.onclick = () => {
+      if (addVocab(b.dataset.w, b.dataset.tr, '', line, song.id)) { b.classList.add('saved'); b.querySelector('i').textContent = '✓'; }
+      else speak(b.dataset.w);
+    });
   }
   function fail(el, html) {
     S.stats.attempts += P.attempt === 1 ? 1 : 0; save();
