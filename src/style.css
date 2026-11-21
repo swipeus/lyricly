@@ -462,3 +462,9 @@ textarea.input { min-height: 220px; resize: vertical; line-height: 1.6; }
 .gloss .gl.saved i { color: var(--good); }
 .gloss .gl > * + * { margin-left: 6px; } /* spacing fallback for iOS < 14.5 (no flex gap) */
 @supports (gap: 1px) { .gloss .gl > * + * { margin-left: 0; } }
+.gloss .gl { flex-direction: column; align-items: flex-start; gap: 2px; }
+.gloss .gl > * + * { margin-left: 0; }
+.gl-top { display: flex; align-items: baseline; }
+.gl-top > * + * { margin-left: 6px; }
+.gl-sub { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.gl-sub em { font-style: normal; color: #b9a9ff; font-weight: 600; }

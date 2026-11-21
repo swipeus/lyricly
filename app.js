@@ -19,7 +19,7 @@ var __spreadValues = (a, b) => {
 };
 var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 var _a;
-const APP_VERSION = 9;
+const APP_VERSION = 10;
 const isTouch = matchMedia("(hover: none)").matches;
 const iosVer = (navigator.userAgent.match(/OS (\d+)_(\d+)/) || []).slice(1).join(".");
 let lastErr = "";
@@ -315,21 +315,214 @@ async function translateFull(text) {
   return res;
 }
 const translate = async (text) => (await translateFull(text)).text;
-const wordTr = /* @__PURE__ */ new Map();
-async function translateWords(words) {
-  const todo = words.filter((w) => !wordTr.has(w));
-  if (todo.length) {
-    try {
-      const r = await fetch("https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=".concat(encodeURIComponent(todo.join("\n"))));
-      if (!r.ok) throw 0;
-      const parts = ((await r.json())[0] || []).map((s) => s[0]).join("").split("\n").map((s) => s.trim());
-      if (parts.length !== todo.length) throw 0;
-      todo.forEach((w, n) => wordTr.set(w, parts[n]));
-    } catch (e) {
-      await Promise.all(todo.map((w) => translate(w).then((t) => wordTr.set(w, t)).catch(() => wordTr.set(w, "—"))));
+const trLower = (s) => String(s || "").toLocaleLowerCase("tr");
+const trStem = (t) => trLower(t).replace(/^-/, "").split(/\s+/)[0].replace(/(mak|mek)$/, "");
+function commonPrefix(a, b) {
+  let n = 0;
+  while (n < a.length && n < b.length && a[n] === b[n]) n++;
+  return n;
+}
+const FUNC = {
+  i: ["ben", "zamir"],
+  you: ["sen, siz", "zamir"],
+  he: ["o (erkek)", "zamir"],
+  she: ["o (kadın)", "zamir"],
+  it: ["o, onu", "zamir"],
+  we: ["biz", "zamir"],
+  they: ["onlar", "zamir"],
+  me: ["beni, bana", "zamir"],
+  him: ["onu, ona", "zamir"],
+  her: ["onu, onun (kadın)", "zamir"],
+  us: ["bizi, bize", "zamir"],
+  them: ["onları, onlara", "zamir"],
+  my: ["benim", "iyelik"],
+  your: ["senin", "iyelik"],
+  his: ["onun (erkek)", "iyelik"],
+  its: ["onun", "iyelik"],
+  our: ["bizim", "iyelik"],
+  their: ["onların", "iyelik"],
+  myself: ["kendim", "zamir"],
+  yourself: ["kendin", "zamir"],
+  at: ["-de, -da", "edat"],
+  in: ["içinde, -de", "edat"],
+  on: ["üstünde, -de", "edat"],
+  to: ["-e, -a", "edat"],
+  of: ["-in, -ın", "edat"],
+  from: ["-den, -dan", "edat"],
+  with: ["ile, birlikte", "edat"],
+  by: ["tarafından, yanında", "edat"],
+  about: ["hakkında", "edat"],
+  into: ["içine", "edat"],
+  for: ["için", "edat"],
+  without: ["-sız, olmadan", "edat"],
+  through: ["içinden, boyunca", "edat"],
+  is: ["-dir (olmak)", "fiil"],
+  am: ["-im (olmak)", "fiil"],
+  are: ["-sin, -siniz (olmak)", "fiil"],
+  was: ["idi, -di (olmak)", "fiil"],
+  were: ["idi, -di (olmak)", "fiil"],
+  be: ["olmak", "fiil"],
+  been: ["olmuş (olmak)", "fiil"],
+  can: ["-ebilmek", "yardımcı fiil"],
+  could: ["-ebilirdi", "yardımcı fiil"],
+  will: ["-ecek", "gelecek zaman"],
+  would: ["-erdi", "yardımcı fiil"],
+  should: ["-meli", "yardımcı fiil"],
+  must: ["-meli, zorunda", "yardımcı fiil"],
+  might: ["-ebilir (belki)", "yardımcı fiil"],
+  "don't": ["-me, yapma", "olumsuz"],
+  "doesn't": ["-mez", "olumsuz"],
+  "didn't": ["-medi", "olumsuz"],
+  "can't": ["-emez", "olumsuz"],
+  "won't": ["-meyecek", "olumsuz"],
+  "wouldn't": ["-mezdi", "olumsuz"],
+  "couldn't": ["-emedi", "olumsuz"],
+  "isn't": ["değil", "olumsuz"],
+  "aren't": ["değil", "olumsuz"],
+  "wasn't": ["değildi", "olumsuz"],
+  "ain't": ["değil (argo)", "olumsuz"],
+  not: ["değil", "zarf"],
+  "i'm": ["ben ...-im (I am)", "kısaltma"],
+  "you're": ["sen ...-sin (you are)", "kısaltma"],
+  "we're": ["biz ...-iz (we are)", "kısaltma"],
+  "they're": ["onlar ...-ler (they are)", "kısaltma"],
+  "it's": ["o ...-dir (it is)", "kısaltma"],
+  "that's": ["bu/o ...-dir (that is)", "kısaltma"],
+  "i'll": ["...-eceğim (I will)", "kısaltma"],
+  "you'll": ["...-eceksin (you will)", "kısaltma"],
+  "i've": ["...-dim (I have)", "kısaltma"],
+  "i'd": ["...-erdim (I would)", "kısaltma"],
+  "let's": ["hadi ...-elim", "kısaltma"],
+  "there's": ["var (there is)", "kısaltma"],
+  and: ["ve", "bağlaç"],
+  but: ["ama", "bağlaç"],
+  or: ["veya", "bağlaç"],
+  so: ["öyle, bu yüzden", "bağlaç"],
+  if: ["eğer", "bağlaç"],
+  because: ["çünkü", "bağlaç"],
+  that: ["o, ki", "bağlaç"],
+  this: ["bu", "zamir"],
+  these: ["bunlar", "zamir"],
+  those: ["şunlar", "zamir"],
+  what: ["ne", "soru"],
+  when: ["ne zaman, -dığında", "soru"],
+  where: ["nerede", "soru"],
+  why: ["neden", "soru"],
+  how: ["nasıl", "soru"],
+  who: ["kim", "soru"],
+  all: ["hepsi, tüm", "sıfat"],
+  just: ["sadece, az önce", "zarf"],
+  there: ["orada", "zarf"],
+  here: ["burada", "zarf"],
+  now: ["şimdi", "zarf"],
+  never: ["asla", "zarf"],
+  always: ["her zaman", "zarf"],
+  yes: ["evet", "ünlem"],
+  no: ["hayır, hiç", "ünlem"],
+  too: ["de, çok", "zarf"],
+  very: ["çok", "zarf"],
+  some: ["biraz, bazı", "sıfat"],
+  every: ["her", "sıfat"],
+  again: ["tekrar", "zarf"],
+  than: ["-den daha", "bağlaç"]
+};
+const IRREG = "was:be were:be been:be had:have did:do done:do went:go gone:go came:come saw:see seen:see said:say made:make took:take taken:take got:get gotten:get gave:give given:give knew:know known:know thought:think told:tell felt:feel found:find left:leave kept:keep held:hold brought:bring bought:buy began:begin begun:begin broke:break broken:break ran:run sang:sing sung:sing wrote:write written:write spoke:speak spoken:speak fell:fall fallen:fall lost:lose met:meet paid:pay sent:send sat:sit stood:stand understood:understand won:win wore:wear chose:choose chosen:choose drove:drive driven:drive ate:eat eaten:eat drank:drink flew:fly flown:fly forgot:forget forgotten:forget hid:hide hidden:hide heard:hear led:lead meant:mean slept:sleep spent:spend taught:teach caught:catch fought:fight became:become woke:wake shook:shake threw:throw thrown:throw grew:grow grown:grow swore:swear tore:tear torn:tear froze:freeze frozen:freeze rode:ride rose:rise risen:rise shot:shoot sold:sell stole:steal stolen:steal struck:strike swam:swim fed:feed built:build burnt:burn dreamt:dream bent:bend lit:light dug:dig hung:hang".split(" ").reduce((o, p) => {
+  const [k, v] = p.split(":");
+  o[k] = v;
+  return o;
+}, {});
+const EMPTY_TR = { text: "", alts: [] };
+function pickSense(word, info, lineTr, baseInfo) {
+  const toks = trLower(lineTr).split(/[^a-zçğıöşüâîû]+/).filter(Boolean);
+  const cands = [];
+  for (const src of [baseInfo, info]) {
+    if (!src) continue;
+    if (src.text && trLower(src.text) !== word) cands.push({ t: src.text, pos: "" });
+    src.alts.forEach((a) => a.terms.forEach((t) => cands.push({ t, pos: a.pos })));
+  }
+  for (let n = cands.length - 1; n >= 0; n--) {
+    const k = trLower(cands[n].t);
+    if (k === word || k.length >= 3 && word.startsWith(k)) cands.splice(n, 1);
+  }
+  let best = null, bestScore = 0;
+  for (const c of cands) {
+    const st = trStem(c.t);
+    if (!st) continue;
+    for (const tok of toks) {
+      const cp = commonPrefix(st, tok);
+      if (cp < Math.min(3, st.length)) continue;
+      const ratio = cp / st.length;
+      if (ratio < 0.5) continue;
+      const score = cp + ratio + (cp === st.length ? 1 : 0);
+      if (score > bestScore) {
+        bestScore = score;
+        best = c;
+      }
     }
   }
-  return words.map((w) => wordTr.get(w) || "—");
+  const main = (baseInfo == null ? void 0 : baseInfo.text) || info.text;
+  const allAlts = [...(baseInfo == null ? void 0 : baseInfo.alts) || [], ...info.alts];
+  let tr, pos;
+  if (best) {
+    tr = best.t;
+    pos = best.pos || (allAlts.find((a) => a.terms.some((t) => trLower(t) === trLower(best.t))) || {}).pos || "";
+  } else if (main && trLower(main) !== word) {
+    tr = main;
+    pos = (allAlts.find((a) => a.terms.some((t) => trLower(t) === trLower(main))) || {}).pos || "";
+  } else if (allAlts.length) {
+    tr = allAlts[0].terms.slice(0, 2).join(", ");
+    pos = allAlts[0].pos;
+  } else {
+    tr = "—";
+    pos = "";
+  }
+  tr = trLower(tr);
+  const seen = new Set(tr.split(", ").map(trLower));
+  const others = [];
+  for (const c of cands) {
+    const k = trLower(c.t);
+    if (!seen.has(k)) {
+      seen.add(k);
+      others.push(k);
+    }
+    if (others.length >= 3) break;
+  }
+  return { word, tr, pos, others };
+}
+function regularBases(w) {
+  const out = [];
+  if (/ied$/.test(w) && w.length >= 5) out.push(w.slice(0, -3) + "y");
+  else if (/ed$/.test(w) && w.length >= 5) {
+    const s = w.slice(0, -2);
+    if (/([bdgklmnprt])\1$/.test(s)) out.push(s.slice(0, -1));
+    out.push(s, w.slice(0, -1));
+  } else if (/ing$/.test(w) && w.length >= 6) {
+    const s = w.slice(0, -3);
+    if (/([bdgklmnprt])\1$/.test(s)) out.push(s.slice(0, -1));
+    out.push(s, s + "e");
+  }
+  return out.filter((b) => b.length >= 3);
+}
+async function senseFor(word, lineTr) {
+  if (FUNC[word]) return { word, tr: FUNC[word][0], pos: FUNC[word][1], others: [] };
+  const irregular = IRREG[word];
+  const [info, irrInfo] = await Promise.all([
+    translateFull(word).catch(() => EMPTY_TR),
+    irregular ? translateFull(irregular).catch(() => EMPTY_TR) : Promise.resolve(null)
+  ]);
+  let s;
+  if (irregular) {
+    s = pickSense(word, info, lineTr || "", irrInfo);
+    s.base = irregular;
+    return s;
+  }
+  for (const b of regularBases(word)) {
+    const bi = await translateFull(b).catch(() => EMPTY_TR);
+    if (!bi.alts.some((a) => /fiil/.test(a.pos))) continue;
+    s = pickSense(word, info, lineTr || "", { text: "", alts: bi.alts.filter((a) => /fiil/.test(a.pos)) });
+    break;
+  }
+  return s || pickSense(word, info, lineTr || "", null);
 }
 const GLOSS_SKIP = new Set("a an the oh ooh ohh yeah ya la na hey uh ah ha mm hmm whoa woah".split(" "));
 async function translateMM(text) {
@@ -411,12 +604,18 @@ async function openWord(word, ctxLine, songId, anchor) {
   pop.style.left = "".concat(x, "px");
   pop.style.top = below ? "".concat(r.bottom + 10, "px") : "".concat(Math.max(16, r.top - 270), "px");
   speak(word);
-  const [trf, def] = await Promise.all([translateFull(word).catch(() => ({ text: "—", alts: [] })), define(word)]);
+  const [trf, def, lineTr] = await Promise.all([
+    translateFull(word).catch(() => ({ text: "—", alts: [] })),
+    define(word),
+    ctxLine ? translate(ctxLine).catch(() => "") : Promise.resolve("")
+  ]);
   if ((popCtx == null ? void 0 : popCtx.word) !== word) return;
-  const tr = trf.text;
+  const sense = lineTr || FUNC[word] ? await senseFor(word, lineTr) : null;
+  if ((popCtx == null ? void 0 : popCtx.word) !== word) return;
+  const tr = sense ? sense.tr : trf.text;
   popCtx.tr = tr;
   popCtx.def = def;
-  $("#wpTr").innerHTML = esc(tr || "—") + (trf.alts.length ? '<div class="small muted" style="font-weight:500;margin-top:4px">'.concat(trf.alts.map((a) => '<i style="color:#b9a9ff;font-style:normal">'.concat(esc(a.pos), ":</i> ").concat(esc(a.terms.join(", ")))).join("<br>"), "</div>") : "");
+  $("#wpTr").innerHTML = (sense && lineTr ? '<span class="small muted" style="font-weight:500">Bu cümlede: </span>' : "") + esc(tr || "—") + ((sense == null ? void 0 : sense.pos) ? ' <span class="small" style="color:#b9a9ff;font-weight:500">('.concat(esc(sense.pos), ")</span>") : "") + (trf.alts.length ? '<div class="small muted" style="font-weight:500;margin-top:4px">'.concat(trf.alts.map((a) => '<i style="color:#b9a9ff;font-style:normal">'.concat(esc(a.pos), ":</i> ").concat(esc(a.terms.join(", ")))).join("<br>"), "</div>") : "");
   if (def) {
     $("#wpPh").textContent = def.phonetic;
     $("#wpDef").innerHTML = def.defs.map((d) => "<div><i>".concat(esc(d.pos), "</i> ").concat(esc(d.def), "</div>")).join("");
@@ -886,16 +1085,26 @@ function viewPlay(song) {
     highlightLine(i);
   }
   async function showTranslations(line) {
-    var _a2;
     const words = [...new Set(tokens(line).map(norm))].filter((w) => !GLOSS_SKIP.has(w));
-    const [lineTr, wordTrs] = await Promise.all([
-      translate(line).catch(() => ""),
-      translateWords(words).catch(() => words.map(() => "—"))
-    ]);
-    const lt = $("#lineTr"), gl = $("#gloss");
-    if (!lt || !gl || ((_a2 = $("#fb .full")) == null ? void 0 : _a2.textContent) !== line) return;
-    lt.textContent = lineTr ? "🇹🇷 ".concat(lineTr) : "Çeviri alınamadı";
-    gl.innerHTML = words.map((w, n) => '<button class="gl '.concat(S.vocab[w] ? "saved" : "", '" data-w="').concat(esc(w), '" data-tr="').concat(esc(wordTrs[n]), '">\n      <b>').concat(esc(w), "</b><span>").concat(esc(wordTrs[n]), "</span><i>").concat(S.vocab[w] ? "✓" : "＋", "</i></button>")).join("");
+    const stillHere = () => {
+      var _a2;
+      return $("#lineTr") && ((_a2 = $("#fb .full")) == null ? void 0 : _a2.textContent) === line;
+    };
+    words.forEach((w) => {
+      if (!FUNC[w]) {
+        translateFull(w).catch(() => {
+        });
+        if (IRREG[w]) translateFull(IRREG[w]).catch(() => {
+        });
+      }
+    });
+    const lineTr = await translate(line).catch(() => "");
+    if (!stillHere()) return;
+    $("#lineTr").textContent = lineTr ? "🇹🇷 ".concat(lineTr) : "Çeviri alınamadı";
+    const senses = await Promise.all(words.map((w) => senseFor(w, lineTr)));
+    if (!stillHere()) return;
+    const sub = (s) => [s.pos && "<em>".concat(esc(s.pos), "</em>"), s.base && "".concat(esc(s.base), " fiilinin geçmiş hali"), s.others.length && "ayrıca: ".concat(esc(s.others.join(", ")))].filter(Boolean).join(" · ");
+    $("#gloss").innerHTML = senses.map((s) => '<button class="gl '.concat(S.vocab[s.word] ? "saved" : "", '" data-w="').concat(esc(s.word), '" data-tr="').concat(esc(s.tr), '">\n      <div class="gl-top"><b>').concat(esc(s.word), "</b><span>").concat(esc(s.tr), "</span><i>").concat(S.vocab[s.word] ? "✓" : "＋", "</i></div>\n      ").concat(sub(s) ? '<div class="gl-sub">'.concat(sub(s), "</div>") : "", "\n    </button>")).join("");
     $$("#gloss .gl").forEach((b) => b.onclick = () => {
       if (addVocab(b.dataset.w, b.dataset.tr, "", line, song.id)) {
         b.classList.add("saved");
