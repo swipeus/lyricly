@@ -137,7 +137,7 @@ textarea.input { min-height: 220px; resize: vertical; line-height: 1.6; }
 .steps { display: flex; gap: 8px; margin-bottom: 18px; }
 .steps .st { flex: 1; padding: 10px; text-align: center; border-radius: 10px; background: var(--card); color: var(--muted); font-size: 13px; font-weight: 600; border: 1px solid var(--line); }
 .steps .st.on { color: var(--text); border-color: var(--accent); background: var(--card2); }
-.results { display: grid; gap: 8px; margin-top: 14px; max-height: 480px; overflow: auto; }
+.results { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 14px; max-height: 480px; overflow: auto; }
 .result { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--bg2); border: 1px solid transparent; cursor: pointer; transition: .15s; text-align: left; width: 100%; }
 .result:hover { border-color: var(--accent); }
 .result .meta { flex: 1; min-width: 0; }

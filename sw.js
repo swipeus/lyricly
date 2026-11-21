@@ -1,8 +1,8 @@
 // Lyricly service worker: keeps the app shell cached so the home-screen app opens fast.
 // Network-first for our own files (so updates arrive right away), cache as fallback.
 // Third-party requests (YouTube, lyrics, translation) are never touched.
-const CACHE = 'lyricly-v4';
-const SHELL = ['./', './index.html', './style.css?v=4', './app.js?v=4', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
+const CACHE = 'lyricly-v5';
+const SHELL = ['./', './index.html', './style.css?v=5', './app.js?v=5', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

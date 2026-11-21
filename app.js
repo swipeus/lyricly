@@ -444,7 +444,8 @@ function viewAdd() {
     } catch (e) { box.innerHTML = `<div class="muted">Arama başarısız: ${esc(e.message)}. İnternet bağlantını kontrol et.</div>`; }
   };
   $('#searchBtn').onclick = doSearch;
-  $('#q').onkeydown = (e) => e.key === 'Enter' && doSearch();
+  // NB: must not return false for other keys — an on* handler returning false cancels the keystroke
+  $('#q').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#q').blur(); doSearch(); } };
   $('#q').focus();
   $('#manualBtn').onclick = () => {
     const raw = $('#mLyrics').value.trim(), title = $('#mTitle').value.trim() || 'Adsız şarkı', artist = $('#mArtist').value.trim() || '';
@@ -1007,5 +1008,5 @@ function bindBackup() {
 /* ============================== BOOT ============================== */
 renderHud();
 route();
-speechSynthesis?.getVoices();
+window.speechSynthesis?.getVoices();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
