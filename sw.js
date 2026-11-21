@@ -1,11 +1,17 @@
 // Lyricly service worker: keeps the app shell cached so the home-screen app opens fast.
-// Network-first for our own files (so updates arrive right away), cache as fallback.
-// Third-party requests (YouTube, lyrics, translation) are never touched.
-const CACHE = 'lyricly-v5';
-const SHELL = ['./', './index.html', './style.css?v=5', './app.js?v=5', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
+// Network-first for our own files, always bypassing the HTTP cache (GitHub Pages sends
+// max-age=600, which would otherwise keep phones on an old version). Cache is only the
+// offline fallback. Third-party requests (YouTube, lyrics, translation) are never touched.
+const VERSION = 6;
+const CACHE = `lyricly-v${VERSION}`;
+const SHELL = ['./', './index.html', `./style.css?v=${VERSION}`, `./app.js?v=${VERSION}`, './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -19,7 +25,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   e.respondWith(
-    fetch(req)
+    fetch(req, { cache: 'no-store' })
       .then((res) => {
         if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
         return res;

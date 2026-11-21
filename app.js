@@ -3,6 +3,20 @@
  * Dış servisler: YouTube IFrame API, LRCLIB (senkron sözler), MyMemory (çeviri),
  * dictionaryapi.dev (İngilizce tanım). */
 'use strict';
+const APP_VERSION = 6; // keep in sync with ?v= in index.html and VERSION in sw.js
+
+// Show unexpected errors on screen (phones have no console) so they can be reported
+let lastErr = '';
+function showError(msg) {
+  msg = String(msg || 'Bilinmeyen hata').slice(0, 160);
+  if (msg === lastErr) return; lastErr = msg;
+  const box = document.getElementById('toasts'); if (!box) return;
+  const t = document.createElement('div'); t.className = 'toast'; t.style.borderColor = '#ff5c6c';
+  t.textContent = `⚠️ Hata (s${APP_VERSION}): ${msg}`;
+  box.appendChild(t); setTimeout(() => t.remove(), 8000);
+}
+addEventListener('error', (e) => { if (e.message && e.message !== 'Script error.') showError(e.message); }); // "Script error." = cross-origin (YouTube) noise
+addEventListener('unhandledrejection', (e) => showError(e.reason?.message || e.reason));
 
 /* ============================== STORAGE ============================== */
 const STORE_KEY = 'lyricly-v1';
@@ -387,8 +401,12 @@ function viewHome() {
         <button class="btn" id="bkPaste" style="margin-top:8px">Yükle</button>
       </details>
     </div>
+    <div class="row small muted" style="justify-content:center;margin-top:18px">
+      <span>Lyricly · Sürüm ${APP_VERSION}</span><button class="btn sm ghost" id="hardRefresh">🔄 Uygulamayı güncelle</button>
+    </div>
   </div>`;
   bindBackup();
+  $('#hardRefresh').onclick = hardRefresh;
   $('#goalSel').onchange = (e) => { S.settings.dailyGoal = +e.target.value; save(); viewHome(); };
   $('#sndTog').onchange = (e) => { S.settings.sound = e.target.checked; save(); sfx.click(); };
   $$('.song').forEach((el) => el.addEventListener('click', (e) => {
@@ -1009,4 +1027,25 @@ function bindBackup() {
 renderHud();
 route();
 window.speechSynthesis?.getVoices();
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+    // home-screen apps stay open in the background for days: look for updates whenever reopened
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+  }).catch(() => {});
+  // a new version took over → reload once so the new code runs (not on the very first install)
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded) return;
+    reloaded = true;
+    if (!/^#\/play/.test(location.hash)) location.reload();
+  });
+}
+async function hardRefresh() {
+  toast('🔄 Güncelleniyor…');
+  try {
+    for (const r of (await navigator.serviceWorker?.getRegistrations?.()) || []) await r.unregister();
+    for (const k of (await window.caches?.keys?.()) || []) await caches.delete(k);
+  } catch {}
+  location.replace(`${location.pathname}?r=${Date.now()}${location.hash}`);
+}
