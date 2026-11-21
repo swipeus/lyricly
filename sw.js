@@ -2,7 +2,7 @@
 // Network-first for our own files, always bypassing the HTTP cache (GitHub Pages sends
 // max-age=600, which would otherwise keep phones on an old version). Cache is only the
 // offline fallback. Third-party requests (YouTube, lyrics, translation) are never touched.
-const VERSION = 7;
+const VERSION = 8;
 const CACHE = `lyricly-v${VERSION}`;
 const SHELL = ['./', './index.html', `./style.css?v=${VERSION}`, `./app.js?v=${VERSION}`, './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 

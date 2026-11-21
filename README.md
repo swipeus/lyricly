@@ -21,3 +21,12 @@ python -m http.server 5178
 ```
 
 Sonra http://localhost:5178 adresini aç (YouTube oynatıcısı `file://` ile çalışmaz).
+
+## Geliştirme
+Kaynak kod `src/` klasöründe. Eski iPhone'larda (iOS 11+) da çalışması için yayınlanan
+`app.js` ve `style.css` derlenmiş çıktıdır:
+
+```
+npm install
+npm run build
+```

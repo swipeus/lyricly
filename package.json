@@ -1,0 +1,11 @@
+{
+  "name": "lyricly",
+  "private": true,
+  "description": "Şarkılarla İngilizce çalışma uygulaması",
+  "scripts": {
+    "build": "esbuild src/app.js --outfile=app.js --target=safari11 --charset=utf8 --legal-comments=none && esbuild src/style.css --outfile=style.css --target=safari11 --charset=utf8"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.2"
+  }
+}
